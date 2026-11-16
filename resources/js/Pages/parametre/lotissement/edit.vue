@@ -175,7 +175,12 @@ async function submitForm() {
 
     } catch (error) {
         console.error(error);
-        toast.error("Erreur lors de la modification");
+        const erreurs = error.response?.data?.errors;
+        if (erreurs) {
+            Object.values(erreurs).flat().forEach((msg) => toast.error(msg));
+            return;
+        }
+        toast.error(error.response?.data?.message || "Erreur lors de la modification");
     }
 }
 

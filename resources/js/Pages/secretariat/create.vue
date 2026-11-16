@@ -19,8 +19,7 @@ defineOptions({ layout: DefaultLayout });
 const slt_region = ref(); 
 const slt_departement = ref();
 const slt_arrondissement = ref();
-const slt_commune = ref(); 
-const txt_lotissement = ref();
+const slt_commune = ref();
 
 const departements = ref(null);
 const arrondissements = ref(null);
@@ -65,7 +64,11 @@ const props = defineProps({
         default: () => [],
     }, 
     communes: Array,
-    lotissements: Array
+    lotissements: Array,
+    agents: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 // Formulaire 
@@ -92,6 +95,7 @@ const form = useForm({
     txt_statut_nicad: "",
     slt_motif_annulation_nicad: "",
     txt_num_titre: "",
+    txt_titre_mere: "",
     slt_statut_nicad: "",
     slt_signalement: "",
     slt_designationSignalement: "",
@@ -142,6 +146,16 @@ const form = useForm({
     txt_emailPA: "",
     txt_ministèreTutelePA: "",
     fichierPDF: "",
+    txt_agentTraiteur: "",
+});
+
+const agentsTraiteurs = computed(() => {
+    const options = [...(props.agents || [])];
+    const courant = form.txt_agentTraiteur;
+    if (courant && !options.some((agent) => String(agent.value) === String(courant))) {
+        options.unshift({ value: courant, label: courant });
+    }
+    return options;
 });
 
 // ✅ CORRIGÉ : Fonction pour réinitialiser TOUS les champs cadastraux
@@ -345,8 +359,7 @@ watchEffect(() => {
     form.slt_region = slt_region.value;
     form.slt_departement = slt_departement.value;
     form.slt_arrondissement = slt_arrondissement.value;
-    form.slt_commune = slt_commune.value; 
-    form.txt_lotissement = txt_lotissement.value; 
+    form.slt_commune = slt_commune.value;
 });
 
 // Nettoyage des champs selon le titulaire
@@ -458,6 +471,16 @@ const submitForm = function () {
     // 4. Vérifier que le titulaire est sélectionné
     if (!form.slt_titulaire) {
         toast.error("❌ Veuillez sélectionner un titulaire.");
+        return;
+    }
+
+    if (!form.txt_agentTraiteur) {
+        toast.error("Veuillez sélectionner l'agent traiteur. Le dossier lui sera attribué.");
+        return;
+    }
+
+    if (!form.rd_immatriculation_terrain) {
+        toast.error("Veuillez indiquer la nature juridique du terrain.");
         return;
     }
 
@@ -850,10 +873,7 @@ const submitForm = function () {
                                                     label="LF"
                                                     name="slt_lf" 
                                                     :options="[
-                                                        {value:'NO', label:'NO'},
-                                                        {value:'KG', label:'KG'},
-                                                        {value:'SM', label:'SM'},
-                                                        {value:'SR', label:'SR'}, 
+                                                        {value:'NGA', label:'NGA'},
                                                     ]" 
                                                     v-model="form.slt_lf"  
                                                 />    
@@ -1193,6 +1213,22 @@ const submitForm = function () {
                                             name="fichierPDF" 
                                             @change="handleFileUpload" 
                                         /> 
+                                                                                
+                                        <div class="sm:col-span-2">
+                                            <BaseSelect
+                                                label="Agent Traiteur"
+                                                name="txt_agentTraiteur"
+                                                v-model="form.txt_agentTraiteur"
+                                                wrapper-class=""
+                                                required
+                                                placeholder="Sélectionner un agent"
+                                                :options="agentsTraiteurs"
+                                                :custom-error="form.errors.txt_agentTraiteur"
+                                            />
+                                            <p class="mt-1 text-xs text-primary-txt/70">
+                                                Le dossier est attribué à cet agent. Il dispose de 10 jours pour le traiter.
+                                            </p>
+                                        </div> 
                                     </div>
                                 </div>
                                 <br />
@@ -1259,8 +1295,8 @@ const submitForm = function () {
 
 .sec-form h5 {
   margin: 1.35rem 0 0.75rem;
-  padding-left: 0.75rem;
-  border-left: 4px solid #a35200;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid #ead8c4;
   color: #613104;
   font-size: 1.05rem;
   font-weight: 700;

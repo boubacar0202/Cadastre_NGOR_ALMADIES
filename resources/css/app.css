@@ -20,8 +20,9 @@
 }
 
 .maz-input input:focus {
-    border-color: #FE5835 !important;
-    box-shadow: 0 0 5px #FE5835 !important;
+    border-color: #613104 !important;
+    outline: 2px solid #613104;
+    outline-offset: 1px;
 }
 
 input[type="checkbox"]:checked {
@@ -44,7 +45,13 @@ select {
         line-height: 1.55;
         color: #3f2410;
         background-color: #faefe6;
+        caret-color: #613104;
         text-rendering: optimizeLegibility;
+    }
+
+    ::selection {
+        background: #e6c5a2;
+        color: #3f2410;
     }
 
     input,
@@ -135,8 +142,8 @@ option {
 
 main form h5 {
     margin: 1.35rem 0 0.75rem;
-    padding-left: 0.75rem;
-    border-left: 4px solid #a35200;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid #ead8c4;
     color: #613104;
     font-size: 1.05rem;
     font-weight: 700;
@@ -158,9 +165,10 @@ main form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):no
 main form select:focus,
 main form textarea:focus,
 main form button[aria-expanded]:focus {
-    border-color: #8a4b12 !important;
+    border-color: #613104 !important;
     box-shadow: none !important;
-    outline: none;
+    outline: 2px solid #613104;
+    outline-offset: 1px;
 }
 
 main form input[readonly] {
@@ -334,8 +342,9 @@ input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus,
 textarea:focus {
     border-color: #613104 !important;
-    box-shadow: 0 0 0 3px rgba(199, 129, 46, 0.22) !important;
-    outline: none;
+    box-shadow: none !important;
+    outline: 2px solid #613104;
+    outline-offset: 1px;
 }
 
 main .bg-primary {
@@ -409,7 +418,7 @@ nav.app-sidebar a.border-primary-menu {
     background: #fff !important;
     color: #613104 !important;
     font-weight: 700 !important;
-    box-shadow: inset 3px 0 0 #c7812e, 0 1px 2px rgba(97, 49, 4, 0.05) !important;
+    box-shadow: 0 1px 2px rgba(97, 49, 4, 0.05) !important;
 }
 
 nav.app-sidebar a.is-active svg,
@@ -433,7 +442,7 @@ nav.app-sidebar .relative.h-10 {
 
 nav.app-sidebar .relative.h-10.border-primary-menu {
     background: #fff;
-    box-shadow: inset 3px 0 0 #c7812e;
+    box-shadow: none;
 }
 
 nav.app-sidebar .globe {

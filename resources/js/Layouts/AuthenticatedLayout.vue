@@ -10,6 +10,7 @@ import { route } from 'ziggy-js'
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
 const isAdmin = computed(() => user.value?.role === 'admin');
+const dossiersEnCours = computed(() => Number(page.props.dossiers_en_cours || 0));
 const isMenuOpen = ref((() => {
     if (typeof window === 'undefined' || window.innerWidth < 768) return false;
     const saved = localStorage.getItem('menuOpen');
@@ -213,7 +214,7 @@ onUnmounted(() => {
                             flex items-center gap-2 text-lg justify-center
                             overflow-x-hidden "
                     >
-                        ☰ Menu
+                        Menu
                     </button> 
                 
                 <transition name="slide">
@@ -223,7 +224,7 @@ onUnmounted(() => {
                             <NavLink :href="route('dashboard')" :active="route().current('dashboard')" 
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2 
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('dashboard')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('dashboard')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M3 10.5L12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1v-10.5z" fill="#ff7a18"/>
                                 </svg>
@@ -233,7 +234,7 @@ onUnmounted(() => {
                             <NavLink :href="route('secretariat.create')" :active="route().current('secretariat.create')" 
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2 
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('secretariat.create')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('secretariat.create')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <path d="M4 6h7l2 2h7v10a2 2 0 0 1-2 2H4V6z" fill="#ff7a18"/>
                                     <path d="M12 11v6m-3-3h6" stroke="white" stroke-width="2"/>
@@ -244,7 +245,7 @@ onUnmounted(() => {
                             <NavLink :href="route('arrivee.create')" :active="route().current('arrivee.create') || route().current('arrivee.edit')"
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('arrivee.create') || route().current('arrivee.edit')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('arrivee.create') || route().current('arrivee.edit')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z" fill="#ff7a18"/>
                                     <path d="M22 6l-10 7L2 6" stroke="white" stroke-width="1.6"/>
@@ -255,7 +256,7 @@ onUnmounted(() => {
                             <NavLink :href="route('depart.create')" :active="route().current('depart.create') || route().current('depart.edit')"
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('depart.create') || route().current('depart.edit')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('depart.create') || route().current('depart.edit')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <path d="M4 4h16a2 2 0 012 2v9l-5 5H4a2 2 0 01-2-2V6a2 2 0 012-2z" fill="#ff7a18"/>
                                     <path d="M17 15v5l5-5h-5z" fill="#613104"/>
@@ -267,7 +268,7 @@ onUnmounted(() => {
                             <NavLink :href="route('geometre.create')" :active="route().current('geometre.create')" 
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2 
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('geometre.create')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('geometre.create')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <path d="M12 21s7-4.5 7-11a7 7 0 10-14 0c0 6.5 7 11 7 11z" fill="#ff7a18"/>
                                     <circle cx="12" cy="10" r="2" fill="white"/>
@@ -278,7 +279,7 @@ onUnmounted(() => {
                             <NavLink :href="route('matriceCadastrale.create')" :active="route().current('matriceCadastrale.create')" 
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2 
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('matriceCadastrale.create')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('matriceCadastrale.create')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <rect x="3" y="4" width="7" height="7" fill="#6a11cb"/>
                                     <rect x="14" y="4" width="7" height="7" fill="#ff7a18"/>
@@ -291,7 +292,7 @@ onUnmounted(() => {
                             <NavLink :href="route('mutation.create')" :active="route().current('mutation.create')" 
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2 
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('mutation.create')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('mutation.create')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <path d="M7 7h11l-3-3m3 3l-3 3" stroke="#ff512f" stroke-width="2" stroke-linecap="round"/>
                                     <path d="M17 17H6l3 3m-3-3l3-3" stroke="#dd2476" stroke-width="2" stroke-linecap="round"/>
@@ -302,7 +303,7 @@ onUnmounted(() => {
                             <NavLink
                                     :href="route('lotissement.index')" :active="(route().current() || '') === 'lotissement.index'"
                                     class="relative hover:bg-primary-dark hover:text-white hover:font-bold hover:text-1xl p-2 
-                                    rounded-xl text-lg text-primary-txt border-l-8 border flex items-center"
+                                    rounded-xl text-lg text-primary-txt flex items-center"
                                 >
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <rect x="4" y="5" width="16" height="3" fill="#6a11cb"/>
@@ -315,7 +316,7 @@ onUnmounted(() => {
                             <NavLink 
                                     :href="route('mutation.index')" :active="route().current('mutation.index')"
                                     class="relative hover:bg-primary-dark hover:text-white hover:font-bold hover:text-1xl p-2 
-                                    rounded-xl text-lg text-primary-txt border-l-8 border flex items-center"
+                                    rounded-xl text-lg text-primary-txt flex items-center"
                                 >    
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <path d="M4 4h10v16H4z" fill="#ff7a18"/>
@@ -328,7 +329,7 @@ onUnmounted(() => {
                             <NavLink :href="route('instance.create')" :active="route().current('instance.create')"
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('instance.create')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('instance.create')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <rect x="3" y="4" width="18" height="16" rx="2" fill="#ff7a18"/>
                                     <path d="M7 9h10M7 13h10M7 17h6" stroke="white" stroke-width="1.6"/>
@@ -339,7 +340,7 @@ onUnmounted(() => {
                             <NavLink :href="route('instancearrivee.create')" :active="route().current('instancearrivee.create')"
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('instancearrivee.create')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('instancearrivee.create')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <path d="M4 6h16v12H4z" fill="#ff7a18"/>
                                     <path d="M4 6l8 6 8-6" stroke="white" stroke-width="1.6"/>
@@ -350,7 +351,7 @@ onUnmounted(() => {
                             <NavLink :href="route('instancedepart.create')" :active="route().current('instancedepart.create')"
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('instancedepart.create')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('instancedepart.create')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <path d="M4 6h16v12H4z" fill="#ff7a18"/>
                                     <path d="M12 16V8M9 11l3-3 3 3" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -361,7 +362,7 @@ onUnmounted(() => {
                             <NavLink :href="route('donnee.create')" :active="route().current('donnee.create')" 
                                 class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2 
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('donnee.create')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('donnee.create')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                     <ellipse cx="12" cy="5" rx="8" ry="3" fill="#ff7a18"/>
                                     <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" fill="#4facfe"/>
@@ -373,7 +374,7 @@ onUnmounted(() => {
                             <NavLink :href="route('plan.create')" :active="route().current('plan.create')" 
                                 class="relative hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2 
-                                rounded-xl text-lg text-primary-txt border-l-8 border flex items-center" :class="{'border-primary-menu': route().current('plan.create')}">
+                                rounded-xl text-lg text-primary-txt flex items-center" :class="{'border-primary-menu': route().current('plan.create')}">
                                 <svg class="w-6 h-6 mr-4 shrink-0 globe" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <defs>
                                         <linearGradient id="earth" x1="0" y1="0" x2="1" y2="1">
@@ -391,12 +392,31 @@ onUnmounted(() => {
                                 Plan
                             </NavLink>
                             
+                            <NavLink :href="isAdmin ? route('traitementDossier.index') : route('traitementDossier.create')" :active="route().current('traitementDossier.index') || route().current('traitementDossier.create')" 
+                                class="relative hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
+                                hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2 
+                                rounded-xl text-lg text-primary-txt flex w-full items-center" :class="{'border-primary-menu': route().current('traitementDossier.index') || route().current('traitementDossier.create')}">
+                                <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 6.5A1.5 1.5 0 0 1 5.5 5H10l1.5 2H18.5A1.5 1.5 0 0 1 20 8.5V18a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18V6.5z" fill="#ff7a18"/>
+                                    <path d="M7 11.5h6M7 14.5h4" stroke="white" stroke-width="1.3" stroke-linecap="round"/>
+                                    <circle cx="17.2" cy="16.2" r="3.4" fill="#613104"/>
+                                    <path d="M15.6 16.2 16.7 17.3 18.9 15" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <span class="truncate">Traitement Dossiers</span>
+                                <span
+                                    v-if="dossiersEnCours > 0"
+                                    class="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-none text-white"
+                                >
+                                    {{ dossiersEnCours > 99 ? "99+" : dossiersEnCours }}
+                                </span>
+                            </NavLink>
+                            
                             <!-- Paramètres : visible uniquement pour les administrateurs -->
                             <template v-if="isAdmin">
                             <div
                                 class="relative h-10 hover:bg-primary-dark hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                 hover:shadow-lg hover:scale-[1.02] hover:text-white hover:font-bold hover:text-1xl 
-                                p-2 rounded-xl text-lg text-primary-txt border-l-8 border flex items-center justify-between"
+                                p-2 rounded-xl text-lg text-primary-txt flex items-center justify-between"
                                 :class="{'border-primary-menu': route().current().startsWith('parametre.') || isSettingsOpen}"
                             >
                                 <NavLink 
@@ -421,7 +441,7 @@ onUnmounted(() => {
                                 <NavLink
                                     :href="route('parametre.admin')" :active="route().current('parametre.admin')"
                                     class="relative hover:bg-primary-dark hover:text-white hover:font-bold hover:text-1xl p-2 
-                                    rounded-xl text-lg text-primary-txt border-l-8 border flex items-center justify-between"
+                                    rounded-xl text-lg text-primary-txt flex items-center justify-between"
                                 >
                                     <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                         <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4z" fill="#ff7a18"/>
@@ -429,13 +449,13 @@ onUnmounted(() => {
                                         <path d="M16.8 13.2 19.4 14.1v2.1c0 1.4-1 2.4-2.6 3-1.6-.6-2.6-1.6-2.6-3v-2.1l2.6-.9z" fill="#613104"/>
                                         <path d="M15.9 16.1 16.8 17 18.4 15.4" stroke="white" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
                                     </svg>
-                                    Administrateur
+                                    Comptes
                                 </NavLink>
 
                                 <NavLink
                                     :href="route('parametre.user')" :active="route().current('parametre.user')"
                                     class="relative hover:bg-primary-dark hover:text-white hover:font-bold hover:text-1xl p-2 
-                                    rounded-xl text-lg text-primary-txt border-l-8 border flex items-center justify-between"
+                                    rounded-xl text-lg text-primary-txt flex items-center justify-between"
                                 >
                                     <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                         <circle cx="16.2" cy="9" r="2.5" fill="#613104"/>
@@ -448,7 +468,7 @@ onUnmounted(() => {
 
                                 <NavLink :href="route('parametre.lotissement.create')" :active="route().current('parametre.lotissement.create')"
                                     class="relative hover:bg-primary-dark hover:text-white hover:font-bold hover:text-1xl p-2 
-                                    rounded-xl text-lg text-primary-txt border-l-8 border flex items-center"
+                                    rounded-xl text-lg text-primary-txt flex items-center"
                                 >
                                     <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                         <rect x="2" y="2.5" width="15" height="13.5" rx="2" fill="#ff7a18" />
@@ -465,7 +485,7 @@ onUnmounted(() => {
  
                                 <NavLink :href="route('parametre.pointDensifier.createPoint')" :active="route().current('parametre.pointDensifier.createPoint')"
                                     class="relative hover:bg-primary-dark hover:text-white hover:font-bold hover:text-1xl p-2 
-                                    rounded-xl text-lg text-primary-txt border-l-8 border flex items-center"
+                                    rounded-xl text-lg text-primary-txt flex items-center"
                                 >
                                     <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                         <path d="M10.5 2.2C7.9 2.2 5.8 4.3 5.8 6.9c0 3.6 3.8 8.2 4.7 9.1.9-.9 4.7-5.5 4.7-9.1 0-2.6-2.1-4.7-4.7-4.7z" fill="#ff7a18" />
@@ -487,7 +507,7 @@ onUnmounted(() => {
                                     :active="route().current('parametre.service.create') || route().current('parametre.service.edit')"
                                     class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                     hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2
-                                    rounded-xl text-lg text-primary-txt border-l-8 border flex items-center"
+                                    rounded-xl text-lg text-primary-txt flex items-center"
                                     :class="{'border-primary-menu': route().current('parametre.service.create') || route().current('parametre.service.edit')}">
                                     <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                         <path d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" fill="#ff7a18"/>
@@ -500,7 +520,7 @@ onUnmounted(() => {
                                     :active="route().current('parametre.trimestre.create')"
                                     class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                     hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2
-                                    rounded-xl text-lg text-primary-txt border-l-8 border flex items-center"
+                                    rounded-xl text-lg text-primary-txt flex items-center"
                                     :class="{'border-primary-menu': route().current('parametre.trimestre.create')}">
                                     <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                         <rect x="3" y="5" width="18" height="16" rx="2" fill="#ff7a18"/>
@@ -513,7 +533,7 @@ onUnmounted(() => {
                                     :active="route().current('parametre.bareme.index')"
                                     class="hover:from-primary hover:to-primary-dark hover:bg-gradient-to-r
                                     hover:shadow-lg hover:scale-[1.02] hover:text-white hover:text-1xl hover:font-bold p-2
-                                    rounded-xl text-lg text-primary-txt border-l-8 border flex items-center"
+                                    rounded-xl text-lg text-primary-txt flex items-center"
                                     :class="{'border-primary-menu': route().current('parametre.bareme.index')}">
                                     <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                         <path d="M12 4v14" stroke="#ff7a18" stroke-width="2" stroke-linecap="round"/>
@@ -529,7 +549,7 @@ onUnmounted(() => {
                                 <NavLink 
                                     :href="route('parametre.chart')" :active="route().current('parametre.chart')"
                                     class="relative hover:bg-primary-dark hover:text-white hover:font-bold hover:text-1xl p-2 
-                                    rounded-xl text-lg text-primary-txt border-l-8 border flex items-center"
+                                    rounded-xl text-lg text-primary-txt flex items-center"
                                 >
                                     <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
                                         <path d="M4 20V4" stroke="#ff7a18" stroke-width="2"/>
@@ -537,6 +557,31 @@ onUnmounted(() => {
                                         <path d="M7 15l3-4 3 2 4-6" stroke="#00c6ff" stroke-width="2" fill="none"/>
                                     </svg>
                                     Evalutation
+                                </NavLink>
+
+                                <NavLink
+                                    :href="route('parametre.evaluation.user')" :active="route().current('parametre.evaluation.user')"
+                                    class="relative hover:bg-primary-dark hover:text-white hover:font-bold hover:text-1xl p-2
+                                    rounded-xl text-lg text-primary-txt flex items-center"
+                                >
+                                    <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="8" cy="8" r="3" fill="#ff7a18"/>
+                                        <path d="M3 19c.4-2.6 2.2-4 5-4s4.6 1.4 5 4" fill="#ff7a18"/>
+                                        <path d="M14 14v6M14 20h6M17 14v6" stroke="#4facfe" stroke-width="1.8" stroke-linecap="round"/>
+                                    </svg>
+                                    Evaluation User
+                                </NavLink> 
+                                
+                                <NavLink
+                                    :href="route('parametre.rechercheAvancee.create')" :active="route().current('parametre.rechercheAvancee.create')"
+                                    class="relative hover:bg-primary-dark hover:text-white hover:font-bold hover:text-1xl p-2
+                                    rounded-xl text-lg text-primary-txt flex items-center"
+                                >
+                                    <svg class="w-6 h-6 mr-4 shrink-0" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="10" cy="10" r="6" stroke="#ff7a18" stroke-width="2"/>
+                                        <path d="M15 15l5 5" stroke="#4facfe" stroke-width="2" stroke-linecap="round"/>
+                                    </svg>
+                                    Recherche Avancée
                                 </NavLink> 
 
                             </div>
@@ -548,7 +593,7 @@ onUnmounted(() => {
 
             <!-- Footer -->         
             <footer class="bg-primary-form/60 border-t border-primary-only/80 text-center text-xs tracking-wide text-primary-txt mt-auto py-4 rounded-xl">
-                <b>CENTRE DES SERVICES FISCAUX</b><br>CADASTRE KÉDOUGOU
+                <b>CENTRE DES SERVICES FISCAUX</b><br>CADASTRE NGOR ALMADIES
             </footer>
             </div>
         </nav>

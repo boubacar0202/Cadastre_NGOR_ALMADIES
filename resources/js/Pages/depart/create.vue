@@ -1,29 +1,47 @@
 <script setup>
-import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head, useForm } from "@inertiajs/vue3";
+import { useForm, router } from "@inertiajs/vue3";
 import MazBtn from "maz-ui/components/MazBtn";
-import MazSelect from "maz-ui/components/MazBtn";
-import MazRadio from "maz-ui/components/MazRadio";
-import { onMounted, ref, watch, watchEffect, computed  } from "vue";
+import { onMounted, ref, watch, watchEffect, computed } from "vue";
 import axios from "axios";
-import { toast } from "@/Components/AppToast";  
+import { toast } from "@/Components/AppToast";
 import DefaultLayout from "@/Layouts/DefaultLayout.vue";
-import { Inertia } from '@inertiajs/inertia';  
 import BaseInput from "@/Components/BaseInput.vue";
 import BaseSelect from "@/Components/BaseSelect.vue";
+import PageFrame from "@/Components/PageFrame.vue";
 
-defineOptions({ layout: DefaultLayout }); 
-const props = defineProps({
-    arrivee: Object,    
-    arrivees: Array,
-    departs: Array,
-    depart: Object,
-});
- 
-// show bay
-const showBail = ref(false); 
+defineOptions({ layout: DefaultLayout });
 
-// useForm
+const CATEGORIES_LIEES = ["Reponse à un Courrier arrivé", "Dossier Retourné", "Dossier Retourne"];
+
+const objetsAvecBail = new Set([
+    "Demande de Régularisation par voie de Bail",
+    "DEMANDE DE BAIL",
+    "Morcellements",
+    "Réquisition d'immatriculation",
+    "Demande Avis Technique",
+    "Demande de terrain/Echange",
+    "Prospection de terrain",
+    "Autorisation de construction",
+    "Demande d'extraits de plan",
+    "Autorisation de lotir",
+    "Demande d'états des lieux",
+    "Demande de délimitation",
+    "Demande de reconstruction",
+    "Réquisition DSCOS",
+    "Tribunal",
+    "Litiges",
+    "Demande de situation foncière",
+    "Demande de Cession définitive",
+    "Demande d'évaluation",
+    "Demande de Cession définitive a Titre Gratuit",
+    "Demande d'attestation du Cadastre",
+    "Réceptions de lotissements",
+    "Demande de CIC",
+    "Duplication de CIC",
+    "Demande de Titre foncier",
+    "Autorisation de morceler",
+]);
+
 const form = useForm({
     //  courierdepart 
     txt_numdordrecd:"",
@@ -41,7 +59,9 @@ const form = useForm({
     txt_prenomNomcd:"",
     txt_numLotcd:"",
     txt_superficiecd:"",
-    txt_numTFcd:"",
+    txt_numTitreMerecd:"",
+    txt_numTitreFonciercd:"",
+    txt_NICADcd:"",
     txt_lotissementcd:"",
 
     txt_objetcd:"",
@@ -53,18 +73,30 @@ const form = useForm({
     fichierPDFcd: null,
 });
  
-const fichierPDFcd = ref(null);  
+const fichierPDFcd = ref(null);
+const designationLiee = ref("");
+const anneeCourante = ref(null);
+const numeroGenere = ref(null);
 
-// Show des demande de régularisation par voie de bail 
-watch(
-    [() => form.txt_objetcd, () => form.txt_typecourriercd],
-    ([objetcd, typecourrier]) => {
+const showcd = computed(() => CATEGORIES_LIEES.includes(form.txt_categoriecd));
 
-            showBail.value =
-                objetcd === "Demande de Régularisation par voie de Bail" || objetcd === "DEMANDE DE BAIL"  || objetcd === "Demande de CIC" && 
-            typecourrier !== "BE";
-    }
-);
+const showBail = computed(() => {
+    const dejaRenseigne = [
+        form.txt_numdossiercd,
+        form.txt_avisReponsecd,
+        form.txt_prenomNomcd,
+        form.txt_numLotcd,
+        form.txt_superficiecd,
+        form.txt_numTitreFonciercd,
+        form.txt_numTitreMerecd,
+        form.txt_NICADcd,
+        form.txt_lotissementcd,
+    ].some((valeur) => valeur !== "" && valeur != null);
+
+    const concerneUneParcelle = objetsAvecBail.has(form.txt_objetcd) || objetsAvecBail.has(designationLiee.value);
+
+    return dejaRenseigne || (concerneUneParcelle && form.txt_typecourriercd !== "BE");
+});
 
 // Récuperer le fichier PDF 
 function handleFileUploadcd(event) {
@@ -90,54 +122,64 @@ function handleFileUploadcd(event) {
     console.log("Fichier PDF sélectionné :", fichierPDFcd.value);
 }
 
-// Comotement de la catégories
-const showcd = ref(false);
-const handleCategorieChangecd = () => {
-    showcd.value = form.txt_categoriecd === "Reponse à un Courrier arrivé" || form.txt_categoriecd === "Dossier Retourne";
+const mettreAJourNumero = () => {
+    if (!form.dt_datecouriercd || numeroGenere.value === null) return;
+    const date = new Date(form.dt_datecouriercd);
+    if (Number.isNaN(date.getTime())) return;
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    form.txt_numdordrecd = `${numeroGenere.value}/${day}-${month}-${year}`;
 };
-watch(() => form.txt_categoriecd, (newValue) => {
-    showcd.value = newValue === "Reponse à un Courrier arrivé" || newValue === "Dossier Retourne";
-});
-  
-// Automaiser le Numéro d'ordre
+
 const fetchNextDossier = async (annee) => {
+    if (annee === anneeCourante.value && numeroGenere.value !== null) {
+        mettreAJourNumero();
+        return;
+    }
+
     try {
-        const response = await axios.get(`/depart/next/${annee}`);
+        const response = await axios.get(route("depart.next", annee));
         const numero = response.data.num_dordre;
-
-        // ✅ Formater la date au format DD-MM-YYYY
-        const date = new Date(form.dt_datecouriercd);
-        const day = String(date.getDate()).padStart(2, "0");
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const year = date.getFullYear();
-        const dateFormatee = `${day}-${month}-${year}`;
-
-        form.txt_numdordrecd = `${numero}/${dateFormatee}`;
-        console.log("✅ Numéro généré :", form.txt_numdordrecd);
-
+        if (!numero) throw new Error("Numéro absent");
+        anneeCourante.value = annee;
+        numeroGenere.value = numero;
+        mettreAJourNumero();
     } catch (error) {
-        console.error("❌ Erreur :", error);
-
-        const date = new Date();
-        const day = String(date.getDate()).padStart(2, "0");
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const year = date.getFullYear();
-        const dateFormatee = `${day}-${month}-${year}`;
-
-        form.txt_numdordrecd = `0001/${dateFormatee}`;
+        console.error("Erreur génération numéro départ :", error);
+        if (!form.txt_numdordrecd) {
+            const date = new Date(form.dt_datecouriercd || Date.now());
+            const day = String(date.getDate()).padStart(2, "0");
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const year = date.getFullYear();
+            numeroGenere.value = "0001";
+            anneeCourante.value = year;
+            form.txt_numdordrecd = `0001/${day}-${month}-${year}`;
+        }
     }
 };
 
-// Regénérer automatiquement quand la date change
 watch(() => form.dt_datecouriercd, (nouvelleDate) => {
-    if (nouvelleDate) {
-        const annee = new Date(nouvelleDate).getFullYear();
+    if (!nouvelleDate) return;
+    const date = new Date(nouvelleDate);
+    if (Number.isNaN(date.getTime())) return;
+    const annee = date.getFullYear();
+    if (annee !== anneeCourante.value) {
         fetchNextDossier(annee);
+    } else {
+        mettreAJourNumero();
+    }
+});
+
+onMounted(() => {
+    if (form.dt_datecouriercd) {
+        fetchNextDossier(new Date(form.dt_datecouriercd).getFullYear());
     }
 }); 
   
 // Références disponibles 
-const references = ref([]);  
+const references = ref([]);
+const rechercheReference = ref('');  
 const referenceToExpediteur = ref({});
 const referenceToObject = ref({}); 
 const referenceToReception = ref({});
@@ -146,156 +188,131 @@ const referenceToPrenomNom = ref({});
 const referenceToNumLot = ref({});
 const referenceToSuperficie = ref({});
 const referenceToNumTF = ref({});
+const referenceToNumTitreMere = ref({});
+const referenceToNicad = ref({});
 const referenceToLotissement = ref({});
 const referenceToTypeCourrier = ref({});
 const referenceToNumDossier = ref({});
-  
-// Filtrage dynamique des arrivées par catégorie 
-// Surveille le changement de catégorie pour charger les références liées
-watch(() => form.txt_categoriecd, async (newCategorie) => {
-    if (!newCategorie) return;
+const referenceToDesignation = ref({});
+
+const viderCartes = () => {
+    references.value = [];
+    referenceToExpediteur.value = {};
+    referenceToObject.value = {};
+    referenceToReception.value = {};
+    referenceToNombreDePiece.value = {};
+    referenceToPrenomNom.value = {};
+    referenceToNumLot.value = {};
+    referenceToSuperficie.value = {};
+    referenceToNumTF.value = {};
+    referenceToNumTitreMere.value = {};
+    referenceToNicad.value = {};
+    referenceToLotissement.value = {};
+    referenceToTypeCourrier.value = {};
+    referenceToNumDossier.value = {};
+    referenceToDesignation.value = {};
+};
+
+const appliquerCartes = (data) => {
+    references.value = data.references || [];
+    referenceToExpediteur.value = data.map_ref_to_expediteur || {};
+    referenceToObject.value = data.map_ref_to_objet || {};
+    referenceToReception.value = data.map_ref_to_reception || {};
+    referenceToNombreDePiece.value = data.map_ref_to_nombrePiece || {};
+    referenceToPrenomNom.value = data.map_ref_to_prenomNom || {};
+    referenceToNumLot.value = data.map_ref_to_numLot || {};
+    referenceToSuperficie.value = data.map_ref_to_superficie || {};
+    referenceToNumTF.value = data.map_ref_to_numTF || {};
+    referenceToNumTitreMere.value = data.map_ref_to_numTitreMere || {};
+    referenceToNicad.value = data.map_ref_to_nicad || {};
+    referenceToLotissement.value = data.map_ref_to_lotissement || {};
+    referenceToTypeCourrier.value = data.map_ref_to_typeCourrier || {};
+    referenceToNumDossier.value = data.map_ref_to_numDossier || {};
+    referenceToDesignation.value = data.map_ref_to_designation || {};
+};
+
+const fetchReferences = async (categorie) => {
+    if (!categorie || !CATEGORIES_LIEES.includes(categorie)) {
+        viderCartes();
+        return;
+    }
 
     try {
-        const res = await axios.post('/fetch-references-arrivee', {
-            categorie: newCategorie
+        const res = await axios.post("/fetch-references-arrivee", {
+            categorie,
+            q: rechercheReference.value,
         });
-
-        // ✅ Mise à jour des références 
-        references.value = res.data.references || []; 
-
-        // ✅ Mapping de référence vers expéditeur 
-        referenceToExpediteur.value = res.data.map_ref_to_expediteur || {};
-        referenceToObject.value = res.data.map_ref_to_objet || {};
-        referenceToReception.value = res.data.map_ref_to_reception || {};
-        referenceToNombreDePiece.value = res.data.map_ref_to_nombrePiece || {};
-        referenceToPrenomNom.value = res.data.map_ref_to_prenomNom || {};
-        referenceToNumLot.value = res.data.map_ref_to_numLot || {};
-        referenceToSuperficie.value = res.data.map_ref_to_superficie || {};
-        referenceToNumTF.value = res.data.map_ref_to_numTF || {};
-        referenceToLotissement.value = res.data.map_ref_to_lotissement || {};
-        referenceToTypeCourrier.value = res.data.map_ref_to_typeCourrier || {};
-        referenceToNumDossier.value = res.data.map_ref_to_numDossier || {};
-  
-        form.txt_referencecourierarriveecd = '';
-        form.txt_destinatairecd = '';
-        form.txt_objetcd = ''; 
-        form.txt_referencereceptioncd = ''; 
-        form.txt_nombrepiececd = '';
-        form.txt_prenomNomcd = '';
-        form.txt_numLotcd = '';
-        form.txt_superficiecd = '';
-        form.txt_numTFcd = '';
-        form.txt_lotissementcd = '';
-        form.txt_typecourriercd = '';
-        form.txt_numdossiercd = '';
-
+        appliquerCartes(res.data || {});
     } catch (e) {
-        console.error('❌ Erreur lors de la récupération des références :', e);
-        references.value = []; 
-        referenceToExpediteur.value = {};
-        referenceToObject.value = {};
-        referenceToReception.value = {};
-        referenceToNombreDePiece.value = {};
-        referenceToPrenomNom.value = {};
-        referenceToNumLot.value = {};
-        referenceToSuperficie.value = {};
-        referenceToNumTF.value = {};
-        referenceToLotissement.value = {};
-        referenceToTypeCourrier.value = {};
-        referenceToNumDossier.value = {};
-     }
-});
- 
-// Surveille le changement de la référence choisie
-watch(() => form.txt_referencecourierarriveecd, (selectedRef) => {
-    if (selectedRef && referenceToExpediteur.value[selectedRef]) {
-        form.txt_destinatairecd = referenceToExpediteur.value[selectedRef];
-    } else {
-        form.txt_destinatairecd = '';
+        console.error("Erreur lors de la récupération des références :", e);
+        viderCartes();
     }
+};
+
+const lire = (carte, cle) => (cle && carte[cle] != null ? carte[cle] : "");
+
+const superficieSansUnite = (valeur) => {
+    if (valeur == null || valeur === "") return "";
+    const nombre = String(valeur)
+        .replace(/m\s*[²2]/gi, "")
+        .replace(/\s/g, "")
+        .replace(",", ".")
+        .match(/-?\d+(?:\.\d+)?/);
+    return nombre ? nombre[0] : "";
+};
+
+const appliquerReference = (selectedRef) => {
+    if (!selectedRef) {
+        designationLiee.value = "";
+        return;
+    }
+
+    designationLiee.value = lire(referenceToDesignation.value, selectedRef);
+    form.txt_destinatairecd = lire(referenceToExpediteur.value, selectedRef);
+    form.txt_objetcd = lire(referenceToObject.value, selectedRef) || designationLiee.value;
+    form.txt_nombrepiececd = lire(referenceToNombreDePiece.value, selectedRef);
+    form.txt_prenomNomcd = lire(referenceToPrenomNom.value, selectedRef);
+    form.txt_numLotcd = lire(referenceToNumLot.value, selectedRef);
+    form.txt_superficiecd = superficieSansUnite(lire(referenceToSuperficie.value, selectedRef));
+    form.txt_numTitreFonciercd = lire(referenceToNumTF.value, selectedRef);
+    form.txt_numTitreMerecd = lire(referenceToNumTitreMere.value, selectedRef);
+    form.txt_NICADcd = lire(referenceToNicad.value, selectedRef);
+    form.txt_lotissementcd = lire(referenceToLotissement.value, selectedRef);
+    form.txt_typecourriercd = lire(referenceToTypeCourrier.value, selectedRef);
+    form.txt_numdossiercd = lire(referenceToNumDossier.value, selectedRef);
+};
+
+watch(() => form.txt_categoriecd, (newCategorie, ancienne) => {
+    if (newCategorie === ancienne) return;
+    form.txt_referencecourierarriveecd = "";
+    form.txt_destinatairecd = "";
+    form.txt_objetcd = "";
+    form.txt_nombrepiececd = "";
+    form.txt_prenomNomcd = "";
+    form.txt_numLotcd = "";
+    form.txt_superficiecd = "";
+    form.txt_numTitreFonciercd = "";
+    form.txt_numTitreMerecd = "";
+    form.txt_NICADcd = "";
+    form.txt_lotissementcd = "";
+    form.txt_typecourriercd = "";
+    form.txt_numdossiercd = "";
+    designationLiee.value = "";
+    fetchReferences(newCategorie);
 });
 
-// Surveiller le categorie et récupérer l'objet 
-watch(() => form.txt_referencecourierarriveecd, (selectedRef) => {
-    if (selectedRef && referenceToObject.value[selectedRef]) {
-        form.txt_objetcd = referenceToObject.value[selectedRef];
-    } else {
-        form.txt_objetcd = '';
-    }
+let rechercheReferenceTimer = null;
+watch(rechercheReference, () => {
+    clearTimeout(rechercheReferenceTimer);
+    rechercheReferenceTimer = setTimeout(() => {
+        if (form.txt_categoriecd) fetchReferences(form.txt_categoriecd);
+    }, 300);
 });
 
-// Surveiller le categorie et récupérer le nombre de piece 
 watch(() => form.txt_referencecourierarriveecd, (selectedRef) => {
-    if (selectedRef && referenceToNombreDePiece.value[selectedRef]) {
-        form.txt_nombrepiececd = referenceToNombreDePiece.value[selectedRef];
-    } else {
-        form.txt_nombrepiececd = '';
-    }
+    appliquerReference(selectedRef);
 });
 
-// Surveiller le categorie et récupérer le penomNom 
-watch(() => form.txt_referencecourierarriveecd, (selectedRef) => {
-    if (selectedRef && referenceToPrenomNom.value[selectedRef]) {
-        form.txt_prenomNomcd = referenceToPrenomNom.value[selectedRef];
-    } else {
-        form.txt_prenomNomcd = '';
-    }
-});
-
-// Surveiller le categorie et récupérer le numLot 
-watch(() => form.txt_referencecourierarriveecd, (selectedRef) => {
-    if (selectedRef && referenceToNumLot.value[selectedRef]) {
-        form.txt_numLotcd = referenceToNumLot.value[selectedRef];
-    } else {
-        form.txt_numLotcd = '';
-    }
-});
-
-// Surveiller le categorie et récupérer la Superficie 
-watch(() => form.txt_referencecourierarriveecd, (selectedRef) => {
-    if (selectedRef && referenceToSuperficie.value[selectedRef]) {
-        form.txt_superficiecd = referenceToSuperficie.value[selectedRef];
-    } else {
-        form.txt_superficiecd = '';
-    }
-});
-
-// Surveiller le categorie et récupérer le numTF 
-watch(() => form.txt_referencecourierarriveecd, (selectedRef) => {
-    if (selectedRef && referenceToNumTF.value[selectedRef]) {
-        form.txt_numTFcd = referenceToNumTF.value[selectedRef];
-    } else {
-        form.txt_numTFcd = '';
-    }
-});
-
-// Surveiller le categorie et récupérer le lotissement 
-watch(() => form.txt_referencecourierarriveecd, (selectedRef) => {
-    if (selectedRef && referenceToLotissement.value[selectedRef]) {
-        form.txt_lotissementcd = referenceToLotissement.value[selectedRef];
-    } else {
-        form.txt_lotissementcd = '';
-    }
-});
-
-// Surveiller le categorie et récupérer le type de courrier 
-watch(() => form.txt_referencecourierarriveecd, (selectedRef) => {
-    if (selectedRef && referenceToTypeCourrier.value[selectedRef]) {
-        form.txt_typecourriercd = referenceToTypeCourrier.value[selectedRef];
-    } else {
-        form.txt_typecourriercd = '';
-    }
-});
-
-// Surveiller le categorie et récupérer le numDossier 
-watch(() => form.txt_referencecourierarriveecd, (selectedRef) => {
-    if (selectedRef && referenceToNumDossier.value[selectedRef]) {
-        form.txt_numdossiercd = referenceToNumDossier.value[selectedRef];
-    } else {
-        form.txt_numdossiercd = '';
-    }
-});
- 
 // reupèration references courrier depart
 watch(
   () => [form.txt_numdordrecd, form.dt_datecouriercd],
@@ -334,103 +351,80 @@ watch(
 
     // Extraire la partie après le dernier "/"
     const partsNumero = newNum.split("/");
-    const complementRef = partsNumero[partsNumero.length - 2].trim();
+    const complementRef = (partsNumero.length > 1 ? partsNumero[0] : newNum).trim();
 
-    form.txt_referencecd = `${complementRef}/MFB/DGID/CSF/CSF-KDG/BCAD du ${dateFormatee}`;
+    form.txt_referencecd = `${complementRef}/MFB/DGID/CSF/CSF-NGA/BCAD du ${dateFormatee}`;
 
   }
 );
   
-// 🔹 1. Extraire et normaliser la date d'arrivée depuis la référence
-const dateArrivee = ref(''); 
-watch(
-    () => form.txt_referencecourierarriveecd,
-    (newReference) => {
-        if (!newReference) {
-            dateArrivee.value = '';
-            return;
-        }
+const instantCalendaire = (texte, depuisReference) => {
+    if (!texte) return null;
+    const source = String(texte).trim();
+    const cible = depuisReference
+        ? (source.match(/du\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i)?.[1] ?? "")
+        : source.slice(0, 10);
+    const morceaux = cible.match(/^(\d{1,4})[\/\-.](\d{1,2})[\/\-.](\d{1,4})$/);
+    if (!morceaux) return null;
 
-        const parts = newReference.split(' du ');
-        if (parts.length === 2) {
-            let dateString = parts[1].trim();
-            dateString = normalizeDate(dateString);
-            dateArrivee.value = dateString;
-            console.log("✅ Date extraite normalisée :", dateString);
-        } else {
-            dateArrivee.value = '';
-            console.warn("⚠️ Format inattendu :", newReference);
-        }
-    }
-);
-
-// // 🔹 2. Fonction intelligente de normalisation
-function normalizeDate(dateStr) {
-    if (!dateStr) return "";
-
-    // Remplacer ., / par -
-    dateStr = dateStr.replace(/[./]/g, "-");
-
-    // Vérifier si format AAAA-MM-JJ
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-        return dateStr; // déjà ISO
+    let jour;
+    let mois;
+    let annee;
+    if (morceaux[1].length === 4) {
+        annee = Number(morceaux[1]);
+        mois = Number(morceaux[2]);
+        jour = Number(morceaux[3]);
+    } else {
+        jour = Number(morceaux[1]);
+        mois = Number(morceaux[2]);
+        annee = Number(morceaux[3].length === 2 ? `20${morceaux[3]}` : morceaux[3]);
     }
 
-    // Vérifier si format JJ-MM-AAAA
-    if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
-        const [jour, mois, annee] = dateStr.split("-");
-        return `${annee}-${mois}-${jour}`;
+    const instant = Date.UTC(annee, mois - 1, jour);
+    const date = new Date(instant);
+    if (date.getUTCFullYear() !== annee || date.getUTCMonth() !== mois - 1 || date.getUTCDate() !== jour) {
+        return null;
     }
+    return instant;
+};
 
-    // Vérifier si format JJ-MM-AA (rare mais possible)
-    if (/^\d{2}-\d{2}-\d{2}$/.test(dateStr)) {
-        const [jour, mois, annee] = dateStr.split("-");
-        return `20${annee}-${mois}-${jour}`;
-    }
+const calculerDureeTraitement = (reference, dateEnvoi) => {
+    const arrivee = instantCalendaire(reference, true);
+    const envoi = instantCalendaire(dateEnvoi, false);
+    if (arrivee == null || envoi == null) return "";
 
-    // Sinon, invalide
-    return "";
-}
+    const jours = Math.round((envoi - arrivee) / 86400000);
+    if (jours < 0) return "";
+    if (jours === 0) return "24 heures";
+    return jours === 1 ? "1 jour" : `${jours} jours`;
+};
 
-// 🔹 3. Calcul automatique de la durée de traitement
-watch(
-    () => [dateArrivee.value, form.dt_dateenvoicd, form.txt_categoriecd],
-    ([arrivee, envoie, categorie]) => {
-        if (!["Reponse à un Courrier arrivé", "Dossier Retourne"].includes(categorie)) {
+watchEffect(() => {
+    if (!CATEGORIES_LIEES.includes(form.txt_categoriecd)) {
         form.txt_dureetraitementcd = "";
         return;
-        }
-
-        if (!arrivee || !envoie) return;
-
-        // ✅ Convertir "JJ/MM/AAAA" → "AAAA-MM-JJ" si nécessaire
-        const toISO = (date) =>
-        /^\d{2}\/\d{2}\/\d{4}$/.test(date)
-            ? date.split("/").reverse().join("-")
-            : date;
-
-        const dArr = new Date(toISO(arrivee));
-        const dEnv = new Date(toISO(envoie));
-
-        const diff = Math.ceil((dEnv - dArr) / (1000 * 3600 * 24));
-
-        form.txt_dureetraitementcd = diff <= 0 ? "24 heures" : `${diff} jours`;
     }
-);
+
+    form.txt_dureetraitementcd = calculerDureeTraitement(
+        form.txt_referencecourierarriveecd,
+        form.dt_dateenvoicd
+    );
+});
  
 // Soumission du formulaire
 const submitForm = function () {  // Ajoutez `async` ici 
     const today = new Date().toISOString().split('T')[0];
 
     if (form.dt_dateenvoicd > today) {
-        toast.error("La date d'envoi dépasse d'aujourd'hui. CORRIGER");
+        toast.error("La date d'envoi ne peut pas être postérieure à aujourd'hui.");
         return;
     }
     // Formulaire Laravel
-    form.post(route('depart.store'), {   
+    form.post(route('depart.store'), {
+        forceFormData: true,
         onSuccess: () => {
             toast.success('Enregistré avec succès')
-            Inertia.visit(route("depart.create"), { replace: true });
+            router.visit(route("depart.create"), { replace: true });
         },
         onError: (errors) => {
         
@@ -443,25 +437,11 @@ const submitForm = function () {  // Ajoutez `async` ici
 </script>
 
 <template>
-    <Head title="Courrier Départ" />
-
-    <AuthenticatedLayout>
-        <template #header>
-            <h2 class="text-xl font-semibold leading-tight text-primary-txt">
-                Enregistrement des Courriers Départs 
-            </h2>
-
-        </template>
-
-        <div class="py-12">
-            <div class="flex justify-center">
-                <div class="w-full max-w-8xl">
-                    <div class="bg-white shadow-md sm:rounded-xl">
-                        <!-- En-tête du formulaire -->
-                        <div class="p-4 border-b bg-primary sm:rounded-t-xl">
-                            <h1 class="text-lg text-white font-semibold">Formulaire d'enregistrement des Courriers Départs</h1>
-                        </div>
-                        <!-- Corps du formulaire -->
+    <PageFrame
+        page-title="Courrier Départ"
+        header="Enregistrement des Courriers Départs"
+        banner="Formulaire d'enregistrement des Courriers Départs"
+    >
                         <form @submit.prevent="submitForm">
                             <div class="p-6 rounded-lg">
                                 <!-- Section Parcelle --> 
@@ -471,7 +451,7 @@ const submitForm = function () {  // Ajoutez `async` ici
                                             class="sm:col-span-2 bg-gray-100 cursor-not-allowed"
                                             id="txt_numdordrecd"
                                             v-model="form.txt_numdordrecd"
-                                            label="N° Dordre"
+                                            label="N° d'ordre"
                                             type="text"
                                             :required="true"
                                             readonly
@@ -508,7 +488,7 @@ const submitForm = function () {  // Ajoutez `async` ici
 
                                         <BaseSelect 
                                             class="sm:col-span-1"
-                                            label="Type de Courriercd"
+                                            label="Type de Courrier"
                                             name="txt_typecourriercd"  
                                             required
                                             v-model="form.txt_typecourriercd"
@@ -533,12 +513,18 @@ const submitForm = function () {  // Ajoutez `async` ici
                                                 { value: 'Information', label: 'Information' },
                                                 { value: 'Alerte', label: 'Alerte' },
                                                 { value: 'Signalement', label: 'Signalement' },
-                                                { value: 'Dossier Retourne', label: 'Dossier Retourné' }
+                                                { value: 'Dossier Retourné', label: 'Dossier Retourné' }
                                             ]"
                                             placeholder="Sélectionner une catégorie"
-                                            @change="handleCategorieChangecd"
                                         /> 
 
+                                        <BaseInput
+                                            v-if="showcd"
+                                            v-model="rechercheReference"
+                                            label="Rechercher une référence"
+                                            type="search"
+                                            placeholder="Quelques lettres de la référence"
+                                        />
                                         <BaseSelect
                                             v-if="showcd"
                                             id="txt_referencecourierarriveecd"
@@ -589,6 +575,33 @@ const submitForm = function () {  // Ajoutez `async` ici
                                         <BaseInput  
                                             v-if="showBail" 
                                             class="sm:col-span-1"
+                                            label="N° Titre Foncier"
+                                            name="txt_numTitreFonciercd"  
+                                            autocomplete="off"  
+                                            v-model="form.txt_numTitreFonciercd"
+                                        />   
+
+                                        <BaseInput  
+                                            v-if="showBail" 
+                                            class="sm:col-span-1"
+                                            label="N° NICAD"
+                                            name="txt_NICADcd"  
+                                            autocomplete="off"  
+                                            v-model="form.txt_NICADcd"
+                                        />   
+
+                                        <BaseInput  
+                                            v-if="showBail" 
+                                            class="sm:col-span-1"
+                                            label="N° Titre Mère"
+                                            name="txt_numTitreMerecd"  
+                                            autocomplete="off"  
+                                            v-model="form.txt_numTitreMerecd"
+                                        />   
+
+                                        <BaseInput  
+                                            v-if="showBail" 
+                                            class="sm:col-span-1"
                                             label="Superficie (m²)"
                                             name="txt_superficiecd"  
                                             autocomplete="off"  
@@ -598,32 +611,13 @@ const submitForm = function () {  // Ajoutez `async` ici
                                         <BaseInput  
                                             v-if="showBail" 
                                             class="sm:col-span-1"
-                                            label="N° Titre Mère"
-                                            name="txt_numTFcd"  
-                                            autocomplete="off"  
-                                            v-model="form.txt_numTFcd"
-                                        />   
-
-                                        <BaseInput  
-                                            v-if="showBail" 
-                                            class="sm:col-span-2"
                                             label="Lotissement"
                                             name="txt_lotissementcd"  
                                             autocomplete="on"  
                                             v-model="form.txt_lotissementcd"
                                         />    
-
-                                        <BaseInput
-                                            class="sm:col-span-2"
-                                            id="txt_objetcd"
-                                            v-model="form.txt_objetcd"
-                                            label="Objet"
-                                            type="text" 
-                                            autocomplete="address-level2"
-                                        /> 
-
-                                        <BaseInput
-                                            class="sm:col-span-2"
+ 
+                                        <BaseInput 
                                             id="txt_destinatairecd"
                                             v-model="form.txt_destinatairecd"
                                             label="Destinataire"
@@ -631,8 +625,7 @@ const submitForm = function () {  // Ajoutez `async` ici
                                             autocomplete="off"
                                         /> 
 
-                                        <BaseInput
-                                            class="sm:col-span-2"
+                                        <BaseInput 
                                             id="txt_referencereceptioncd"
                                             v-model="form.txt_referencereceptioncd"
                                             label="Ref. Décharge"
@@ -653,23 +646,31 @@ const submitForm = function () {  // Ajoutez `async` ici
                                             v-if="showcd"
                                             id="txt_dureetraitementcd"
                                             v-model="form.txt_dureetraitementcd"
-                                            label="Durrée de traitement"
+                                            label="Durée de traitement"
                                             type="text"
                                             autocomplete="off"
                                             :disabled="true"
                                         /> 
 
-                                        <BaseSelect
-                                            class="sm:col-span-2"
+                                        <BaseSelect 
                                             id="txt_caracterecd"
                                             v-model="form.txt_caracterecd"
                                             label="Caractères"
                                             :options="[
-                                                { value: 'Connfidentiel', label: 'Confidentiel' },
+                                                { value: 'Confidentiel', label: 'Confidentiel' },
                                                 { value: 'Urgent', label: 'Urgent' },
                                                 { value: 'Secret', label: 'Secret' }
                                             ]"
                                             placeholder="Sélectionner un caractère"
+                                        /> 
+ 
+                                        <BaseInput
+                                            class="sm:col-span-2"
+                                            id="txt_objetcd"
+                                            v-model="form.txt_objetcd"
+                                            label="Objet"
+                                            type="text" 
+                                            autocomplete="address-level2"
                                         /> 
 
                                         <BaseInput
@@ -710,9 +711,5 @@ const submitForm = function () {  // Ajoutez `async` ici
                                 </div>
                             </div>
                         </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </AuthenticatedLayout>
+    </PageFrame>
 </template>

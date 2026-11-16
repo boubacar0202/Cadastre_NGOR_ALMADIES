@@ -67,31 +67,25 @@ onMounted(() => {
 
         <main class="mx-auto grid w-full max-w-6xl flex-1 content-center gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,26rem)] lg:items-center lg:gap-12 lg:py-12">
             <section class="hidden lg:block">
-                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary-menu">
-                    Centre des services fiscaux de Kédougou
-                </p>
-                <h1 class="mt-3 text-4xl font-bold leading-tight text-primary sm:text-5xl">
-                    Cadastre de Kédougou
+                <h1 class="text-4xl font-bold leading-tight tracking-tight text-primary sm:text-5xl">
+                    Cadastre de Ngor Almadies
                 </h1>
                 <p class="mt-4 max-w-xl text-base leading-relaxed">
-                    Connectez-vous pour enregistrer les dossiers, suivre les courriers
+                    Centre des services fiscaux de Ngor Almadies. Connectez-vous pour enregistrer les dossiers, suivre les courriers
                     et consulter la matrice cadastrale.
                 </p>
                 <div class="mt-6 aspect-[2.5/1] overflow-hidden rounded-3xl border border-primary-only bg-white shadow-[0_18px_40px_rgba(97,49,4,0.12)] sm:mt-8">
                     <img
-                        src="/pageAcceuil.jpg?v=kedougou"
-                        alt="Carte du Sénégal, arrondissement de Kédougou dans la région de Kédougou"
+                        src="/pageAcceuil.jpg?v=ngor"
+                        alt="Carte du Sénégal, pointe de Ngor Almadies dans la région de Dakar"
                         class="h-full w-full object-cover object-top"
                     >
                 </div>
             </section>
 
             <section class="mx-auto w-full max-w-md rounded-3xl border border-primary-only bg-white p-6 shadow-[0_18px_40px_rgba(97,49,4,0.1)] sm:p-8">
-                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-primary-menu lg:hidden">
-                    Cadastre de Kédougou
-                </p>
-                <h2 class="mt-2 text-2xl font-bold text-primary lg:mt-0">Connexion</h2>
-                <p class="mt-1 text-sm">Accès réservé au personnel du centre.</p>
+                <h2 class="text-2xl font-bold text-primary">Connexion</h2>
+                <p class="mt-1 text-sm">Cadastre de Ngor Almadies. Accès réservé au personnel du centre.</p>
 
                 <div
                     v-if="status"
@@ -171,8 +165,8 @@ onMounted(() => {
         </main>
  
         <footer class="mt-auto border-t border-primary/20 bg-primary px-4 py-8 text-center text-sm text-primary-form">
-            <p class="font-semibold tracking-wide text-white">Centre des services fiscaux de Kédougou</p>
-            <p class="mt-1">Cadastre de Kédougou — Programme de gestion de base de données MB-1</p>
+            <p class="font-semibold tracking-wide text-white">Centre des services fiscaux de Ngor Almadies</p>
+            <p class="mt-1">Cadastre de Ngor Almadies — Programme de gestion de base de données MB-1</p>
         </footer>
     </div>
 </template>

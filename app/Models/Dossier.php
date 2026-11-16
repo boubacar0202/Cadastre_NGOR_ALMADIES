@@ -18,6 +18,7 @@ class Dossier extends Model
         "txt_etat_cession",
         "txt_cession_definitive", 
         "dt_date_creation",
+        "txt_agentTraiteur",
     ];
     protected $casts = [
         'dt_date_creation' => 'date',
@@ -36,6 +37,11 @@ class Dossier extends Model
     public function mutations()
     {
         return $this->hasMany(Mutation::class, 'dossier_id', 'id');
+    }
+
+    public function attributions()
+    {
+        return $this->hasMany(AttributionDossier::class);
     }
 
 }

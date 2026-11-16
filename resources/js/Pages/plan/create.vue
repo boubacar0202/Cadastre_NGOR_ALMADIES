@@ -1,4 +1,6 @@
 <script setup>
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
+import BoutonModifier from "@/Components/BoutonModifier.vue";
 // ============================================================
 // 1. IMPORTS
 // ============================================================
@@ -13,6 +15,8 @@ import 'leaflet/dist/leaflet.css';
 import proj4 from 'proj4';
 import { toast } from "@/Components/AppToast";
 import * as turf from '@turf/turf';
+import ExtraitPlanApercu from '@/Components/ExtraitPlanApercu.vue';
+import { anneauPrincipal, blocageExtrait, commandesExtrait, echelleAdaptee, nomFichierExtrait, porteeSituation } from '@/utils/extraitPlan';
 import axios from 'axios';
 import { usePage } from '@inertiajs/vue3';
 
@@ -24,8 +28,7 @@ axios.defaults.headers.common['X-CSRF-TOKEN'] = page.props.csrf_token;
 // ============================================================
 const props = defineProps({
     point_densifiers: { type: Array, default: () => [] },
-    shapefiles: { type: Array, default: () => [] },
-});
+    shapefiles: { type: Array, default: () => [] } });
 
 // ============================================================
 // 3. CONSTANTES
@@ -75,6 +78,13 @@ const sections = ref([]);
 const sectionPoints = ref([]);
 const parcellePoints = ref([]);
 const selectedInfo = ref(null);
+const erreurExtrait = ref('');
+const extraitEnCours = ref(false);
+const extraitOuvert = ref(null);
+const choixEchelleOuvert = ref(false);
+const echelleSituationChoisie = ref(2000);
+const echelleParcelleChoisie = ref(500);
+const bureauExtrait = { nom: 'Ngor Almadies', ville: 'Ngor Almadies' };
 const showInfo = ref(false);
 
 const pointsDensifies = ref([]);
@@ -122,8 +132,7 @@ const STYLE_PARCELLE_ROUGE = {
     weight: 3,
     fillColor: '#ef4444',
     fillOpacity: 0.55,
-    opacity: 1,
-};
+    opacity: 1 };
 let shapefileReloadTimer = null;
 const showDeleteModal = ref(false);
 const loadingDelete = ref(false);
@@ -139,6 +148,7 @@ const COULEURS_FORTES = {
     limite_parcelle: '#052e16',
     numero_section: '#7c2d12',
     numero_parcelle: '#052e16',
+    numero_lot: '#052e16',
 };
 const TYPES_ENTITE = [
     { value: 'limite_region', label: 'Limite Région', ordre: 1, fill: 0.16, weight: 2 },
@@ -149,6 +159,7 @@ const TYPES_ENTITE = [
     { value: 'limite_parcelle', label: 'Limite Parcelle', ordre: 6, fill: 0.32, weight: 1.5 },
     { value: 'numero_section', label: 'Numéro Section', ordre: 7, fill: 0, weight: 1.2 },
     { value: 'numero_parcelle', label: 'Numéro Parcelle', ordre: 8, fill: 0, weight: 1.2 },
+    { value: 'numero_lot', label: 'Numéro Lot', ordre: 9, fill: 0, weight: 1.2 },
 ];
 const optionsTypeEntite = TYPES_ENTITE.map(({ value, label }) => ({ value, label }));
 const LIBELLES_CHAMPS_QGIS = {
@@ -157,14 +168,18 @@ const LIBELLES_CHAMPS_QGIS = {
     ENTITYHAND: 'Identifiant',
     SUBCLASSES: 'Type d’entité',
     LINETYPE: 'Type de ligne',
-    PAPERSPACE: 'Espace papier',
-};
+    PAPERSPACE: 'Espace papier' };
 let currentZoomAnimation = null;
 
-// Sites historiques
+// Milieu entre la pointe des Almadies et le village de Ngor.
+const CENTRE_NGOR_ALMADIES = [14.7466, -17.5215];
+const ZOOM_NGOR_ALMADIES = 15;
+
+// Sites de repère du bureau
 const historicalSites = ref([
-    { name: "Village de Dinguessou", lat: 12.5599, lng: -12.1742, description: "Ancien village historique de la région.", type: "historique" },
-    { name: "Palais de Kédougou", lat: 12.5612, lng: -12.1710, description: "Ancienne résidence coloniale.", type: "historique" },
+    { name: "Pointe des Almadies", lat: 14.7447, lng: -17.5292, description: "Pointe des Almadies, commune de Ngor.", type: "historique" },
+    { name: "Village de Ngor", lat: 14.7484, lng: -17.5138, description: "Village traditionnel de Ngor.", type: "historique" },
+    { name: "Phare des Mamelles", lat: 14.7244, lng: -17.5016, description: "Phare des Mamelles, commune d'Ouakam.", type: "historique" },
 ]);
 const historicLayerGroup = ref(null);
 
@@ -181,6 +196,10 @@ function safeFlyTo(lat, lng, zoom = 20, options = {}) {
     } catch (e) {
         console.warn('flyTo error:', e.message);
     }
+}
+
+function recentrerSurNgorAlmadies() {
+    safeFlyTo(CENTRE_NGOR_ALMADIES[0], CENTRE_NGOR_ALMADIES[1], ZOOM_NGOR_ALMADIES, { duration: 0.8 });
 }
 
 function safeFitBounds(bounds, options = {}) {
@@ -253,7 +272,7 @@ function utmToGps(est, nord) {
     }
 }
 
-const TYPES_LOURDS = new Set(['limite_parcelle', 'numero_parcelle']);
+const TYPES_LOURDS = new Set(['limite_parcelle', 'numero_parcelle', 'numero_lot']);
 
 function isHeavyShapefile(shp) {
     if (TYPES_LOURDS.has(shp?.type_entite)) return true;
@@ -278,7 +297,7 @@ function searchLocation() {
         try {
             const response = await axios.get('https://nominatim.openstreetmap.org/search', {
                 params: { q: searchQuery.value, format: 'json', countrycodes: 'sn', limit: 6, addressdetails: 1 },
-                headers: { 'User-Agent': 'Cadastre_Kedougou/1.0' }
+                headers: { 'User-Agent': 'Cadastre_Ngor_Almadies/1.0' }
             });
             searchResults.value = response.data;
         } catch (error) {
@@ -748,8 +767,27 @@ function closeShapefileModal() {
 // ============================================================
 // 19. CHARGEMENT SHAPEFILES
 // ============================================================
+function estNumeroPlan(shp) {
+    return shp?.type_entite === 'numero_parcelle' || shp?.type_entite === 'numero_lot';
+}
+
+function denominateurCarte(zoom) {
+    if (!map.value || !Number.isFinite(zoom)) return Infinity;
+    const latRad = map.value.getCenter().lat * Math.PI / 180;
+    return (591657550.5 * Math.cos(latRad)) / (2 ** zoom);
+}
+
+function libelleNumeroPlan(shp, feature) {
+    const brut = String(feature?.properties?.TEXT ?? feature?.properties?.text ?? '').trim();
+    if (shp?.type_entite === 'numero_parcelle') return chiffresCadastre(brut, 5);
+    const chiffres = brut.replace(/\D/g, '');
+    if (!chiffres) return '';
+    return String(parseInt(chiffres, 10));
+}
+
 function shapefileVisibleAuZoom(shp, zoom) {
     if (!shp.visible) return false;
+    if (estNumeroPlan(shp)) return denominateurCarte(zoom) <= 3000;
     if (featuredShapefileId.value === shp.id) return true;
     return !(isHeavyShapefile(shp) && zoom < ZOOM_THRESHOLD_POINTS);
 }
@@ -821,7 +859,7 @@ function geometrieDansLimites(feature, bounds) {
 
 function preparerAffichage(shp, data) {
     if (!isHeavyShapefile(shp) || !map.value) {
-        return { data, textes: data.features.length <= 800 };
+        return { data, textes: estNumeroPlan(shp) || data.features.length <= 800 };
     }
 
     const bounds = map.value.getBounds().pad(0.35);
@@ -833,8 +871,7 @@ function preparerAffichage(shp, data) {
 
     return {
         data: { type: 'FeatureCollection', features },
-        textes: features.length > 0 && features.length <= 250,
-    };
+        textes: estNumeroPlan(shp) || (features.length > 0 && features.length <= 250) };
 }
 
 function signatureCouche(shp) {
@@ -867,8 +904,7 @@ function ajouterCoucheShapefile(shp, data, textes) {
                 if (e.originalEvent) L.DomEvent.stopPropagation(e);
                 selectionnerShapefile(shp, feature, index, lyr);
             });
-        },
-    });
+        } });
 
     layer._shpId = shp.id;
     layer._signature = signatureCouche(shp);
@@ -943,6 +979,18 @@ async function chargerShapefiles() {
 }
 
 function marqueurEntite(feature, latlng, shp, enAvant, textes) {
+    if (estNumeroPlan(shp)) {
+        const texte = libelleNumeroPlan(shp, feature);
+        if (!texte) return L.circleMarker(latlng, { radius: 1, opacity: 0, fillOpacity: 0 });
+        return L.marker(latlng, {
+            icon: L.divIcon({
+                className: 'shp-chiffre',
+                html: `<span>${escapeHtml(texte)}</span>`,
+                iconSize: [52, 14],
+                iconAnchor: [26, 7],
+            }),
+        });
+    }
     const texte = textes ? String(feature?.properties?.TEXT ?? '').trim() : '';
     if (texte) {
         return L.marker(latlng, {
@@ -950,17 +998,14 @@ function marqueurEntite(feature, latlng, shp, enAvant, textes) {
                 className: 'shp-numero',
                 html: `<span class="${enAvant ? 'is-active' : ''}">${escapeHtml(texte)}</span>`,
                 iconSize: [42, 24],
-                iconAnchor: [21, 12],
-            }),
-        });
+                iconAnchor: [21, 12] }) });
     }
     return L.circleMarker(latlng, {
         radius: enAvant ? 8 : 6,
         fillColor: enAvant ? '#7f1d1d' : couleurForte(shp),
         color: '#ffffff',
         weight: 2,
-        fillOpacity: 1,
-    });
+        fillOpacity: 1 });
 }
 
 function escapeHtml(valeur) {
@@ -1006,8 +1051,7 @@ function styleShapefile(shp, enAvant) {
         fillOpacity: enAvant ? 0.4 : (meta?.fill ?? 0.22),
         opacity: 1,
         lineCap: 'butt',
-        lineJoin: 'miter',
-    };
+        lineJoin: 'miter' };
 }
 
 function libelleChamp(cle) {
@@ -1032,8 +1076,7 @@ function libelleGeometrie(type) {
         LineString: 'Ligne',
         MultiLineString: 'Multiligne',
         Polygon: 'Polygone',
-        MultiPolygon: 'Multipolygone',
-    }[type] || type || '';
+        MultiPolygon: 'Multipolygone' }[type] || type || '';
 }
 
 function attributsShapefile(feature) {
@@ -1044,8 +1087,7 @@ function attributsShapefile(feature) {
             return {
                 key: cle,
                 label: libelleChamp(cle),
-                value: brut === null || brut === undefined || String(brut).trim() === '' ? '' : String(brut),
-            };
+                value: brut === null || brut === undefined || String(brut).trim() === '' ? '' : String(brut) };
         });
 }
 
@@ -1105,8 +1147,7 @@ function peindreParcelleRouge(couche) {
         weight: couche.options.weight,
         fillColor: couche.options.fillColor,
         fillOpacity: couche.options.fillOpacity,
-        opacity: couche.options.opacity ?? 1,
-    };
+        opacity: couche.options.opacity ?? 1 };
     couche.setStyle(STYLE_PARCELLE_ROUGE);
     if (couche.bringToFront) couche.bringToFront();
     coucheParcelleRouge = couche;
@@ -1134,10 +1175,8 @@ function surlignerEntiteShapefile(feature) {
             color: '#ffffff',
             weight: 3,
             fillColor: '#ef4444',
-            fillOpacity: 1,
-        }),
-        style: STYLE_PARCELLE_ROUGE,
-    }).addTo(map.value);
+            fillOpacity: 1 }),
+        style: STYLE_PARCELLE_ROUGE }).addTo(map.value);
     surlignageShapefile.value.bringToFront();
 }
 
@@ -1157,6 +1196,7 @@ function zoomSurEntite(feature) {
 
 function selectionnerShapefile(shp, feature = null, index = null, couche = null) {
     resetParcelleSelection();
+    erreurExtrait.value = '';
     selectedPointId.value = null;
 
     const sauve = shp?.verification?.type === 'parcelle' ? shp.verification : null;
@@ -1171,8 +1211,7 @@ function selectionnerShapefile(shp, feature = null, index = null, couche = null)
         parcelle: sauve?.prochain || '',
         section: sauve ? `${sauve.nomSection || ''}${sauve.section ? ' · ' + sauve.section : ''}`.replace(/^ · /, '') : '',
         loading: estParcelle && !!feature,
-        data: ficheParcelleEnregistree(sauve),
-    };
+        data: ficheParcelleEnregistree(sauve) };
     showInfo.value = true;
     if (couche) peindreParcelleRouge(couche);
     if (feature) surlignerEntiteShapefile(feature);
@@ -1220,8 +1259,7 @@ const entitesFiltrees = computed(() => {
             feature,
             index,
             titre: titreEntite(feature, index),
-            detail: detailEntite(feature),
-        }))
+            detail: detailEntite(feature) }))
         .filter((item) => !q || `${item.titre} ${item.detail}`.toLowerCase().includes(q))
         .sort((a, b) => a.titre.localeCompare(b.titre, 'fr', { numeric: true }));
 });
@@ -1279,8 +1317,7 @@ async function ouvrirTableAttributs(shp) {
         tableAttributs.value = {
             shp,
             features: data.features || [],
-            columns: colonnesShapefile(data.features || []),
-        };
+            columns: colonnesShapefile(data.features || []) };
         rechercheAttributs.value = '';
         closeShapefileModal();
     } catch (e) {
@@ -1332,8 +1369,240 @@ function ficheParcelleEnregistree(verification) {
         commune: '',
         suffixe: verification.suffixe || '',
         slt_service_rendu: '',
-        txt_etat_cession: '',
-    };
+        txt_etat_cession: '' };
+}
+
+function memeGeometrie(a, b) {
+    if (a === b) return true;
+    try {
+        return turf.distance(turf.centroid(a), turf.centroid(b), { units: 'meters' }) < 0.4;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function limitesSectionAutour(polygone) {
+    let zone = null;
+    try {
+        zone = turf.buffer(polygone, 80, { units: 'meters' });
+    } catch (e) {
+        zone = null;
+    }
+    const couches = await lireCouches('limite_section');
+    const lignes = [];
+    couches.forEach((feature) => {
+        let proche = !zone;
+        if (zone) {
+            try {
+                proche = turf.booleanIntersects(zone, feature);
+            } catch (e) {
+                proche = false;
+            }
+        }
+        if (!proche) return;
+        const geometry = feature?.geometry;
+        const anneaux = geometry?.type === 'LineString' ? [geometry.coordinates]
+            : geometry?.type === 'MultiLineString' ? geometry.coordinates
+                : geometry?.type === 'Polygon' ? geometry.coordinates
+                    : geometry?.type === 'MultiPolygon' ? geometry.coordinates.flat()
+                        : [];
+        anneaux.forEach((anneau) => {
+            if (anneau.length >= 2) {
+                lignes.push(anneau.map(([lng, lat]) => ({ lng: Number(lng), lat: Number(lat) })));
+            }
+        });
+    });
+    return lignes;
+}
+
+async function parcellesAutour(polygone, echelleSituation = 2000) {
+    const parcelles = await lireCouches('limite_parcelle');
+    const numeros = await lireCouches('numero_parcelle');
+    const pointsLot = await lireCouches('numero_lot');
+    const sections = await lireCouches('limite_section');
+    const numerosSection = await lireCouches('numero_section');
+    let zone = null;
+    try {
+        zone = turf.buffer(polygone, porteeSituation(echelleSituation), { units: 'meters' });
+    } catch (e) {
+        zone = null;
+    }
+    const autres = parcelles.filter((item) => estPolygone(item) && !memeGeometrie(polygone, item));
+    let limites = null;
+    if (zone) {
+        try {
+            limites = turf.bbox(zone);
+        } catch (e) {
+            limites = null;
+        }
+    }
+    const proches = autres.filter((item) => {
+        if (!limites) return false;
+        const boite = boiteFeature(item);
+        if (!boite || boite[2] < limites[0] || boite[0] > limites[2] || boite[3] < limites[1] || boite[1] > limites[3]) {
+            return false;
+        }
+        try {
+            return turf.booleanIntersects(zone, item);
+        } catch (e) {
+            return false;
+        }
+    });
+    let tampon = null;
+    try {
+        tampon = turf.buffer(polygone, 1.5, { units: 'meters' });
+    } catch (e) {
+        tampon = null;
+    }
+    const demandes = proches.map((feature) => {
+        let touche = false;
+        try {
+            touche = !!tampon && turf.booleanIntersects(tampon, feature);
+        } catch (e) {
+            touche = false;
+        }
+        const pointLot = pointsLot.find((point) => pointDansPolygone(point, feature)) || null;
+        const lotPoint = texteAttribut(pointLot);
+        if (lotPoint) {
+            return { feature, section: '', parcelle: '', lotissement: '', touche, lotPoint };
+        }
+        const pointNumero = numeros.find((point) => pointDansPolygone(point, feature)) || null;
+        const sectionPoly = sectionContenant(feature, sections);
+        return {
+            feature,
+            section: sectionPoly ? numeroDans(sectionPoly, numerosSection, 3) : '',
+            parcelle: chiffresCadastre(texteAttribut(pointNumero), 5),
+            lotissement: coucheAttribut(feature),
+            touche,
+            lotPoint: '',
+        };
+    });
+    const consultables = demandes.filter((item) => !item.lotPoint && item.section && item.parcelle);
+    const lots = new Map();
+    if (consultables.length) {
+        const resultats = await consulterBase(consultables.map(({ section, parcelle, lotissement }) => ({
+            section,
+            parcelle,
+            lotissement })));
+        resultats.forEach((resultat) => {
+            lots.set(`${resultat.section}|${resultat.parcelle}`, {
+                lot: resultat?.terrain?.txt_num_lotissement || '',
+                titre: resultat?.terrain?.txt_num_titre || '' });
+        });
+    }
+    return demandes.map((demande) => {
+        return {
+            ring: anneauPrincipal(demande.feature),
+            lot: demande.lotPoint || lots.get(`${demande.section}|${demande.parcelle}`)?.lot || '',
+            titre: '',
+            touche: demande.touche,
+        };
+    }).filter((item) => item.ring.length >= 3);
+}
+
+function mesuresPolygone(polygone) {
+    try {
+        const boite = turf.bbox(polygone);
+        return {
+            largeur: turf.distance([boite[0], boite[1]], [boite[2], boite[1]], { units: 'meters' }),
+            hauteur: turf.distance([boite[0], boite[1]], [boite[0], boite[3]], { units: 'meters' }),
+        };
+    } catch (e) {
+        return { largeur: 0, hauteur: 0 };
+    }
+}
+
+async function polygoneSelectionne() {
+    const feature = selectedInfo.value?.feature;
+    if (estPolygone(feature)) return feature;
+    if (!feature) return null;
+    const parcelles = await lireCouches('limite_parcelle');
+    return polygoneContenantPoint(feature, parcelles);
+}
+
+async function ouvrirExtraitPlan() {
+    erreurExtrait.value = '';
+    if (!selectedInfo.value?.feature) {
+        erreurExtrait.value = 'Cette parcelle n’a pas de géométrie.';
+        return;
+    }
+    echelleSituationChoisie.value = 2000;
+    echelleParcelleChoisie.value = 500;
+    choixEchelleOuvert.value = true;
+}
+
+async function validerEchelles() {
+    choixEchelleOuvert.value = false;
+    erreurExtrait.value = '';
+    extraitEnCours.value = true;
+    try {
+        const polygone = await polygoneSelectionne();
+        const message = blocageExtrait(selectedInfo.value?.data, estPolygone(polygone));
+        if (message) {
+            erreurExtrait.value = message;
+            return;
+        }
+        const data = selectedInfo.value?.data || {};
+        const info = selectedInfo.value?.identification || {};
+        const section = [info.nomSection, info.section].filter(Boolean).join(' · ') || selectedInfo.value?.section || '';
+        const surfaceSaisie = Number(String(data.nbr_surface ?? '').replace(',', '.'));
+        const superficieM2 = Number.isFinite(surfaceSaisie) && surfaceSaisie > 0
+            ? surfaceSaisie
+            : surfaceM2(polygone);
+        const mesures = mesuresPolygone(polygone);
+        const echelleSituation = echelleAdaptee(
+            echelleSituationChoisie.value,
+            [2000, 5000, 10000, 20000, 50000],
+            mesures.largeur,
+            mesures.hauteur,
+            { w: 74, h: 50 },
+            20,
+        );
+        const echelleParcelle = echelleAdaptee(
+            echelleParcelleChoisie.value,
+            [200, 500, 1000, 2000, 5000, 10000, 20000],
+            mesures.largeur,
+            mesures.hauteur,
+            { w: 178, h: 108 },
+            14,
+        );
+        const commandes = commandesExtrait({
+            bureau: bureauExtrait.nom,
+            ville: bureauExtrait.ville,
+            infos: {
+                region: data.region,
+                departement: data.departement,
+                arrondissement: data.arrondissement,
+                commune: data.commune,
+                requerant: data.titulaire,
+                titre: data.txt_num_titre,
+                titreMere: data.txt_titre_mere,
+                lot: data.txt_num_lotissement,
+                lotissement: data.txt_lotissement,
+                nicad: data.txt_nicad,
+                livre: data.livre_foncier,
+                requisition: data.requisition,
+                section,
+                dossier: data.txt_num_dossier,
+                anneeDossier: data.dt_date_creation },
+            sujet: anneauPrincipal(polygone),
+            parcelles: await parcellesAutour(polygone, echelleSituation),
+            sections: await limitesSectionAutour(polygone),
+            superficieM2,
+            echelles: {
+                situation: echelleSituation,
+                parcelle: echelleParcelle,
+            } });
+        if (!commandes) {
+            erreurExtrait.value = 'Cette parcelle n’a pas de géométrie.';
+            return;
+        }
+        extraitOuvert.value = { commandes, fichier: nomFichierExtrait(data) };
+    } catch (e) {
+        erreurExtrait.value = 'Impossible de préparer l’extrait de plan.';
+    } finally {
+        extraitEnCours.value = false;
+    }
 }
 
 // ============================================================
@@ -1403,9 +1672,7 @@ async function enregistrerProjet() {
             occupee: ligne.occupee,
             part: ligne.part,
             nicad: ligne.base?.terrain?.txt_nicad || ligne.base?.nicad_calcule || '',
-            dossier: ligne.base?.dossier?.txt_num_dossier || '',
-        })),
-    });
+            dossier: ligne.base?.dossier?.txt_num_dossier || '' })) });
 }
 
 // ============================================================
@@ -1545,8 +1812,14 @@ function polygoneContenantPoint(pointFeature, polygones) {
 }
 
 async function consulterBase(parcelles) {
-    const { data } = await axios.post('/api/plan/parcelles', { parcelles });
-    return data.resultats || [];
+    const resultats = [];
+    for (let index = 0; index < parcelles.length; index += 500) {
+        const { data } = await axios.post('/api/plan/parcelles', {
+            parcelles: parcelles.slice(index, index + 500),
+        });
+        resultats.push(...(data.resultats || []));
+    }
+    return resultats;
 }
 
 async function identifierGeometrie(feature, type) {
@@ -1580,8 +1853,7 @@ async function identifierGeometrie(feature, type) {
         nomSection: section ? coucheAttribut(section) : '',
         suffixe: numeroSection && numeroParcelle ? `${numeroSection}${numeroParcelle}` : '',
         sectionFeature: section,
-        numerosParcelle,
-    };
+        numerosParcelle };
 }
 
 async function identifierSelection(shp, feature, jeton) {
@@ -1594,8 +1866,7 @@ async function identifierSelection(shp, feature, jeton) {
             const resultats = await consulterBase([{
                 section: lecture.section,
                 parcelle: lecture.parcelle,
-                lotissement: lecture.lotissement,
-            }]);
+                lotissement: lecture.lotissement }]);
             base = resultats[0] || null;
         }
         if (jeton !== jetonSelection) return;
@@ -1616,12 +1887,19 @@ async function identifierSelection(shp, feature, jeton) {
                 nbr_surface: terrain?.nbr_surface || '',
                 txt_num_lotissement: terrain?.txt_num_lotissement || '',
                 txt_lotissement: terrain?.txt_lotissement || lecture.lotissement || sauve?.lotissement || '',
+                txt_num_titre: terrain?.txt_num_titre || '',
+                txt_titre_mere: terrain?.txt_titre_mere || '',
+                region: terrain?.region || '',
+                departement: terrain?.departement || '',
+                arrondissement: terrain?.arrondissement || '',
+                livre_foncier: terrain?.livre_foncier || '',
+                requisition: terrain?.requisition || '',
                 titulaire: terrain?.titulaire || '',
                 commune: terrain?.commune || '',
                 suffixe: lecture.suffixe || base?.suffixe || sauve?.suffixe || '',
                 slt_service_rendu: dossier?.slt_service_rendu || '',
                 txt_etat_cession: dossier?.txt_etat_cession || '',
-            } : selectedInfo.value.data,
+                dt_date_creation: dossier?.dt_date_creation || '' } : selectedInfo.value.data,
             identification: {
                 chargement: false,
                 section: lecture.section,
@@ -1629,16 +1907,13 @@ async function identifierSelection(shp, feature, jeton) {
                 lotissement: lecture.lotissement,
                 nomSection: lecture.nomSection,
                 suffixe: lecture.suffixe,
-                base,
-            },
-        };
+                base } };
     } catch (e) {
         if (jeton !== jetonSelection) return;
         selectedInfo.value = {
             ...selectedInfo.value,
             loading: false,
-            identification: { chargement: false, erreur: 'Impossible de rattacher le dossier.' },
-        };
+            identification: { chargement: false, erreur: 'Impossible de rattacher le dossier.' } };
     }
 }
 
@@ -1649,8 +1924,7 @@ async function geojsonDuFormulaire() {
     });
     fd.append('srid', form.value.srid || '4326');
     const { data } = await axios.post('/api/plan/previsualiser', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-    });
+        headers: { 'Content-Type': 'multipart/form-data' } });
     return normaliserGeojson(data);
 }
 
@@ -1692,8 +1966,7 @@ async function verifierParcelle() {
         if (polygones.length !== 1) {
             analyseParcelle.value = {
                 valide: false,
-                message: 'Le fichier doit contenir une seule parcelle.',
-            };
+                message: 'Le fichier doit contenir une seule parcelle.' };
             return;
         }
 
@@ -1708,8 +1981,7 @@ async function verifierParcelle() {
             analyseParcelle.value = {
                 valide: false,
                 message: 'La parcelle ne se trouve dans aucune section du plan.',
-                superpositions,
-            };
+                superpositions };
             return;
         }
 
@@ -1736,9 +2008,7 @@ async function verifierParcelle() {
             nicad: `${codeCommune}${suffixe}`,
             superpositions: superpositions.map((item) => ({
                 nom: coucheAttribut(item.parcelle) || 'Parcelle existante',
-                surface: Math.round(item.surface),
-            })),
-        };
+                surface: Math.round(item.surface) })) };
     } catch (e) {
         const errors = e.response?.data?.errors;
         const first = errors ? Object.values(errors).flat()[0] : null;
@@ -1763,8 +2033,7 @@ async function enregistrerParcelle() {
         prochain: info.prochain,
         suffixe: info.suffixe,
         codeCommune: info.codeCommune,
-        nicad: info.nicad,
-    });
+        nicad: info.nicad });
 }
 
 async function analyserProjet() {
@@ -1798,8 +2067,7 @@ async function analyserProjet() {
                     section: section ? numeroDans(section, numerosSection, 3) : '',
                     parcelle: numeroDans(parcelle, numerosParcelle, 5),
                     lotissement: coucheAttribut(parcelle),
-                    nomSection: section ? coucheAttribut(section) : '',
-                };
+                    nomSection: section ? coucheAttribut(section) : '' };
                 lecture.suffixe = lecture.section && lecture.parcelle ? `${lecture.section}${lecture.parcelle}` : '';
                 const surface = surfaceM2(parcelle);
                 const cle = `${lecture.section}-${lecture.parcelle}-${lignes.length}`;
@@ -1817,8 +2085,7 @@ async function analyserProjet() {
                     suffixe: lecture.suffixe,
                     surface: Math.round(surface),
                     occupee,
-                    part: surface > 0 ? Math.round((occupee / surface) * 1000) / 10 : 0,
-                });
+                    part: surface > 0 ? Math.round((occupee / surface) * 1000) / 10 : 0 });
             }
         }
         lignes.forEach((ligne) => {
@@ -1831,8 +2098,7 @@ async function analyserProjet() {
         const bases = consultations.length ? await consulterBase(consultations) : [];
         analyseProjet.value = lignes.map((ligne) => ({
             ...ligne,
-            base: bases.find((item) => item.section === ligne.section && item.parcelle === ligne.parcelle && (item.lotissement || '') === (ligne.lotissement || '')) || null,
-        }));
+            base: bases.find((item) => item.section === ligne.section && item.parcelle === ligne.parcelle && (item.lotissement || '') === (ligne.lotissement || '')) || null }));
         if (!lignes.length) toast.info('Aucune parcelle n’est touchée par ce projet.');
         projetAnalyse.value = true;
         return true;
@@ -1865,8 +2131,7 @@ function editShapefile(shp) {
         id: shp.id,
         nom: shp.nom || '',
         type_entite: shp.type_entite || '',
-        couleur: shp.couleur || '#3388ff',
-    };
+        couleur: shp.couleur || '#3388ff' };
 }
 
 function cancelShapefileEdit() {
@@ -1888,8 +2153,7 @@ async function saveShapefileEdit() {
         const { data } = await axios.patch(`/shapefiles/${edition.id}`, {
             nom,
             type_entite: edition.type_entite || null,
-            couleur: edition.couleur || '#3388ff',
-        });
+            couleur: edition.couleur || '#3388ff' });
 
         const index = shapefiles.value.findIndex((item) => item.id === edition.id);
         if (index !== -1) {
@@ -1950,14 +2214,12 @@ async function confirmerSuppression(codes) {
     try {
         if (cible.type === 'point') {
             const { data } = await axios.delete(`/pointDensifier/destroy/${cible.item.id}`, {
-                data: { code: codes.adminCode },
-            });
+                data: { code: codes.adminCode } });
             retirerElementSupprime(cible);
             toast.success(data.message || 'Point densifié supprimé');
         } else {
             await axios.delete(`/shapefiles/${cible.item.id}`, {
-                data: { code: codes.adminCode },
-            });
+                data: { code: codes.adminCode } });
             retirerElementSupprime(cible);
             const { data } = await axios.get('/shapefiles');
             shapefiles.value = data;
@@ -2043,8 +2305,6 @@ async function zoomToShapefile(shp) {
 // 22. INITIALISATION
 // ============================================================
 onMounted(() => {
-    const kedougou = [12.5599, -12.1742];
-
     map.value = L.map('map', {
         preferCanvas: true,
         zoomAnimation: false,
@@ -2055,7 +2315,7 @@ onMounted(() => {
         wheelPxPerZoomLevel: 100,
         inertia: true,
         easeLinearity: 0.25
-    }).setView(kedougou, 12);
+    }).setView(CENTRE_NGOR_ALMADIES, ZOOM_NGOR_ALMADIES);
 
     // 🚫 Désactiver le double-clic zoom (source de bugs)
     map.value.doubleClickZoom.disable();
@@ -2091,6 +2351,8 @@ onMounted(() => {
     map.value.getContainer().style.cursor = 'grab';
 
     map.value.whenReady(() => {
+        map.value.invalidateSize();
+        map.value.setView(CENTRE_NGOR_ALMADIES, ZOOM_NGOR_ALMADIES, { animate: false });
         pointsDensifies.value = props.point_densifiers;
         shapefiles.value = props.shapefiles || [];
         requestAnimationFrame(() => {
@@ -2104,43 +2366,8 @@ onMounted(() => {
 async function chargerParcellesSiZoom() {
     if (!map.value) return;
 
-    if (map.value.getZoom() < ZOOM_THRESHOLD_POINTS) {
-        if (parcelsLayer.value && map.value.hasLayer(parcelsLayer.value)) {
-            map.value.removeLayer(parcelsLayer.value);
-        }
-        return;
-    }
-
-    if (parcelsLayer.value) {
-        if (!map.value.hasLayer(parcelsLayer.value)) parcelsLayer.value.addTo(map.value);
-        return;
-    }
-
-    if (chargementParcelles) return;
-    chargementParcelles = true;
-
-    try {
-        if (!geojsonData.value) {
-            const response = await fetch('/storage/dinguessou_plateau_complet.geojson');
-            geojsonData.value = await response.json();
-            sections.value = [];
-            parcellePoints.value = [];
-            sectionPoints.value = [];
-            geojsonData.value.features.forEach((feature) => {
-                if (feature.properties?.Level === 6) sections.value.push(feature);
-                if (feature.properties?.Layer === 'Numero_Parcelle') parcellePoints.value.push(feature);
-                if (feature.geometry?.type === 'MultiPoint' && !feature.properties?.Layer && feature.properties?.RefName) {
-                    sectionPoints.value.push(feature);
-                }
-            });
-        }
-
-        if (map.value.getZoom() >= ZOOM_THRESHOLD_POINTS) loadGeoJSON();
-    } catch (error) {
-        console.error('❌ Erreur chargement :', error);
-        toast.error('Erreur chargement des parcelles');
-    } finally {
-        chargementParcelles = false;
+    if (map.value.getZoom() < ZOOM_THRESHOLD_POINTS && parcelsLayer.value && map.value.hasLayer(parcelsLayer.value)) {
+        map.value.removeLayer(parcelsLayer.value);
     }
 }
 
@@ -2164,7 +2391,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Head title="Plan cadastral - Kédougou" />
+    <Head title="Plan cadastral - Ngor Almadies" />
 
     <AuthenticatedLayout>
         <template #header>
@@ -2175,7 +2402,7 @@ onBeforeUnmount(() => {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                         </svg>
                     </span>
-                    Plan cadastral – Kédougou
+                    Plan cadastral – Ngor Almadies
                 </h2>
 
                 <div class="flex min-w-0 flex-wrap items-center gap-2">
@@ -2201,6 +2428,14 @@ onBeforeUnmount(() => {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                         </svg>
                         {{ showList ? 'Afficher' : 'Masquer' }} la liste
+                    </button>
+
+                    <button @click="recentrerSurNgorAlmadies" type="button"
+                        class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white transition bg-primary rounded-lg shadow-sm hover:bg-primary-dark">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        Ngor Almadies
                     </button>
 
                     <button @click="getUserLocation" :disabled="locationLoading"
@@ -2230,7 +2465,7 @@ onBeforeUnmount(() => {
                         <BaseInput
                             v-model="searchQuery"
                             type="text"
-                            placeholder="Rechercher une localité (ex: Kédougou, Saraya…)"
+                            placeholder="Rechercher une localité (ex: Ngor, Almadies, Yoff…)"
                             wrapper-class="w-full"
                             @input="searchLocation"
                         >
@@ -2415,7 +2650,7 @@ onBeforeUnmount(() => {
                                     </div>
                                 </div>
                                 <span v-if="point.txt_documentsAfferants" class="text-xs text-green-500" title="PDF disponible">📄</span>
-                                <button type="button" @click.stop="demanderSuppression('point', point)" class="p-1 text-red-600 rounded-lg hover:bg-red-50" title="Supprimer">🗑</button>
+                                <BoutonSupprimer @click.stop="demanderSuppression('point', point)" />
                             </div>
                         </div>
                     </div>
@@ -2630,6 +2865,11 @@ onBeforeUnmount(() => {
                             </div>
                             <p v-else class="text-sm text-primary-txt/70">Aucune information enregistrée pour cette parcelle.</p>
                             <div class="mt-4 space-y-2">
+                                <button type="button" @click="ouvrirExtraitPlan" :disabled="extraitEnCours || selectedInfo.loading"
+                                    class="flex items-center justify-center w-full gap-2 py-2.5 text-sm font-medium text-white transition bg-primary rounded-xl shadow-sm hover:bg-primary-dark disabled:opacity-60">
+                                    {{ extraitEnCours ? 'Préparation de l’extrait…' : 'Générer extrait de plan' }}
+                                </button>
+                                <p v-if="erreurExtrait" class="text-sm text-red-700">{{ erreurExtrait }}</p>
                                 <button v-if="selectedInfo.feature" type="button" @click="zoomSurEntite(selectedInfo.feature)"
                                     class="flex items-center justify-center w-full gap-2 py-2.5 text-sm font-medium text-white transition bg-primary rounded-xl shadow-sm hover:bg-primary-dark">
                                     Zoomer sur la parcelle
@@ -2847,9 +3087,9 @@ onBeforeUnmount(() => {
                                             <button type="button" @click="mettreShapefileEnAvant(shp)" class="p-2 rounded-lg transition" :class="featuredShapefileId === shp.id ? 'bg-primary text-white' : 'text-primary hover:bg-primary-form'" title="Mettre en avant">⬆</button>
                                             <button type="button" @click="ouvrirListeEntites(shp)" class="p-2 text-primary rounded-lg hover:bg-primary-form transition" title="Toutes les entités">☰</button>
                                             <button type="button" @click="selectionnerShapefile(shp); closeShapefileModal()" class="p-2 text-primary rounded-lg hover:bg-primary-form transition" title="Informations">ℹ</button>
-                                            <button type="button" @click="editShapefile(shp)" class="p-2 text-primary rounded-lg hover:bg-primary-form transition" title="Modifier">✏️</button>
+                                            <BoutonModifier @click="editShapefile(shp)" />
                                             <button type="button" @click="zoomToShapefile(shp)" class="p-2 text-primary rounded-lg hover:bg-primary-form transition" title="Zoomer">🔍</button>
-                                            <button type="button" @click="demanderSuppression('shapefile', shp)" class="p-2 text-red-600 rounded-lg hover:bg-red-50 transition" title="Supprimer">🗑</button>
+                                            <BoutonSupprimer @click="demanderSuppression('shapefile', shp)" />
                                             <button @click="downloadShapefile(shp)" class="p-2 text-primary rounded-lg hover:bg-primary-form transition">💾</button>
                                         </div>
                                     </div>
@@ -3064,6 +3304,42 @@ onBeforeUnmount(() => {
             </Transition>
         </div>
 
+        <div v-if="choixEchelleOuvert" class="fixed inset-0 z-[3000] flex items-center justify-center bg-black/55 p-4">
+            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+                <h2 class="text-lg font-semibold text-primary-txt">Choisir les échelles</h2>
+                <p class="mt-1 text-sm text-primary-txt/70">Une échelle pour chaque plan, puis validez pour afficher l’extrait.</p>
+                <fieldset class="mt-5">
+                    <legend class="text-sm font-semibold text-primary-txt">Échelle pour plan de situation</legend>
+                    <div class="mt-2 space-y-2">
+                        <label v-for="valeur in [2000, 5000, 10000]" :key="`situation-${valeur}`" class="flex items-center gap-2 text-sm text-primary-txt">
+                            <input v-model="echelleSituationChoisie" type="radio" name="echelle-situation" :value="valeur" class="text-primary">
+                            1/{{ valeur }}
+                        </label>
+                    </div>
+                </fieldset>
+                <fieldset class="mt-5">
+                    <legend class="text-sm font-semibold text-primary-txt">Échelle pour plan parcelle</legend>
+                    <div class="mt-2 space-y-2">
+                        <label v-for="valeur in [200, 500, 1000]" :key="`parcelle-${valeur}`" class="flex items-center gap-2 text-sm text-primary-txt">
+                            <input v-model="echelleParcelleChoisie" type="radio" name="echelle-parcelle" :value="valeur" class="text-primary">
+                            1/{{ valeur }}
+                        </label>
+                    </div>
+                </fieldset>
+                <div class="mt-6 flex items-center justify-end gap-3">
+                    <button type="button" class="px-4 py-2 text-sm font-medium text-primary-txt bg-white border border-primary-only rounded-lg hover:bg-primary-form" @click="choixEchelleOuvert = false">Annuler</button>
+                    <button type="button" class="px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-dark" @click="validerEchelles">Valider</button>
+                </div>
+            </div>
+        </div>
+
+        <ExtraitPlanApercu
+            v-if="extraitOuvert"
+            :commandes="extraitOuvert.commandes"
+            :fichier="extraitOuvert.fichier"
+            @fermer="extraitOuvert = null"
+        />
+
         <DeleteModal
             :show="showDeleteModal"
             :itemName="nomElementASupprimer"
@@ -3075,6 +3351,22 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
+.shp-chiffre {
+    background: transparent !important;
+    border: none !important;
+}
+.shp-chiffre span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #111111;
+    background: transparent;
+    border: none;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1;
+}
 .shp-numero {
     background: transparent !important;
     border: none !important;

@@ -22,6 +22,7 @@ class ShapefileController extends Controller
         'limite_parcelle',
         'numero_section',
         'numero_parcelle',
+        'numero_lot',
     ];
 
     private const COULEURS_ENTITE = [
@@ -33,6 +34,7 @@ class ShapefileController extends Controller
         'limite_parcelle'       => '#052e16',
         'numero_section'        => '#7c2d12',
         'numero_parcelle'       => '#052e16',
+        'numero_lot'            => '#052e16',
     ];
     /**
      * ============================================================

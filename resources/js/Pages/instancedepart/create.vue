@@ -1,110 +1,77 @@
 <script setup>
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
+import BoutonModifier from "@/Components/BoutonModifier.vue";
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import BaseInput from '@/Components/BaseInput.vue';
 import BaseSelect from '@/Components/BaseSelect.vue';
-import { defineProps, onMounted } from 'vue'; 
-import { ref, computed, watch } from 'vue';
-import { Head, router, Link as InertiaLink } from '@inertiajs/vue3';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
+import { Head, router } from '@inertiajs/vue3';
+import { debounce } from 'lodash';
 
- 
 const props = defineProps({
-    arrivee: Object,    
-    arrivees: Array,
-    departs: Array,
-    depart: Object,
-});
-  
-const numeroCD = ref('');  
-const annee = ref('');
-const refCourrierArrivee = ref('');
-const selectedDate = ref(null); 
-const refCA = ref('');
- 
-// Filtrer  
-const uniqueReferences = computed(() => {
-    return Array.from(
-        new Set(
-            props.departs
-                .filter(t => {
-                    if (!selectedDate.value) return true;
-                    if (!t.dt_datecouriercd) return false;
-                    return t.dt_datecouriercd.startsWith(selectedDate.value);
-                })
-                .map(t => t.txt_categoriecd)
-                .filter(Boolean)
-        )
-    );
-});
- 
-// Normalisation pour éviter les problèmes d'espaces et de casse
-function normalize(str) {
-    return str?.toString().trim().toLowerCase();
-}
- 
-//  Filtrer par date et par Numéro + Tri croissant par txt_numdordrecd
-const filtereDeparts = computed(() => { 
- 
-    const filtered = props.departs.filter(depart => { 
+    departs: {
+        type: Object,
+        default: () => ({
+            data: [],
+            current_page: 1,
+            last_page: 1,
+            per_page: 15,
+            total: 0 }) },
+    objetcourrier: {
+        type: Array,
+        default: () => [] },
+    stats: {
+        type: Object,
+        default: () => ({ total: 0 }) },
+    filters: {
+        type: Object,
+        default: () => ({}) } });
 
+const filtres = ref({
+    numeroTF: props.filters?.numeroTF || '',
+    numLot: props.filters?.numLot || '',
+    prenom: props.filters?.prenom || '',
+    annee: props.filters?.annee || '',
+    numero: props.filters?.numero || '',
+    reference: props.filters?.reference || '',
+    objetcourrier: props.filters?.objetcourrier || '' });
 
-        const matchNumero = numeroCD.value
-            ? normalize(depart.txt_numdordrecd)?.includes(normalize(numeroCD.value))
-            : true; 
+const uniqueObjetcourrier = computed(() => {
+    const liste = Array.isArray(props.objetcourrier)
+        ? props.objetcourrier
+        : Object.values(props.objetcourrier || {});
 
-        const matchArrivee = refCourrierArrivee.value
-            ? normalize(depart.txt_categoriecd)?.includes(normalize(refCourrierArrivee.value))
-            : true;
-
-        const matchCA = refCA.value 
-            ? normalize(depart.txt_referencecourierarriveecd)?.includes(normalize(refCA.value))
-            : true;  
- 
-        const matchAnnee = annee.value ? depart.dt_datecouriercd &&
-        new Date(depart.dt_datecouriercd).getFullYear().toString() === annee.value
-        : true;
-
-
-        return matchNumero && matchAnnee && matchArrivee && matchCA;
-    });
-
-    // Tri par ordre numérique de la partie avant "/"
-    return filtered.sort((a, b) => {
-        const numA = parseInt(a.txt_numdordrecd?.split("/")[0] || 0, 10);
-        const numB = parseInt(b.txt_numdordrecd?.split("/")[0] || 0, 10);
-        return numA - numB; // ordre croissant
-    });
+    return [
+        { value: '', label: 'Tous les objets' },
+        ...liste.map((objet) => (
+            objet && typeof objet === 'object'
+                ? objet
+                : { value: objet, label: objet }
+        )),
+    ];
 });
 
-const perPage = 15;
-const currentPage = ref(1);
-
-watch([annee, numeroCD, refCA, refCourrierArrivee], () => {
-    currentPage.value = 1;
-});
-
-const lastPage = computed(() => Math.max(1, Math.ceil(filtereDeparts.value.length / perPage)));
-
-const page = computed(() => Math.min(Math.max(currentPage.value, 1), lastPage.value));
-
-const paginatedDeparts = computed(() => {
-    const start = (page.value - 1) * perPage;
-    return filtereDeparts.value.slice(start, start + perPage);
-});
+const pageMeta = computed(() => props.departs?.meta || props.departs || {});
+const paginatedDeparts = computed(() => (
+    Array.isArray(props.departs) ? props.departs : (props.departs?.data || [])
+));
+const filtereDeparts = paginatedDeparts;
 
 const pagination = computed(() => {
-    const current = page.value;
-    const last = lastPage.value;
+    const current = pageMeta.value.current_page || 1;
+    const last = Math.max(1, pageMeta.value.last_page || 1);
+    const perPage = pageMeta.value.per_page || 15;
     const pages = new Set([1, last, current, current - 1, current + 1, current - 2, current + 2]);
-    const sorted = [...pages].filter((p) => p >= 1 && p <= last).sort((a, b) => a - b);
+    const sorted = [...pages].filter((page) => page >= 1 && page <= last).sort((a, b) => a - b);
     const links = [];
     let previous = 0;
 
-    sorted.forEach((p) => {
-        if (p - previous > 1) {
+    sorted.forEach((page) => {
+        if (page - previous > 1) {
             links.push({ label: '...', url: null, active: false });
         }
-        links.push({ label: String(p), url: `?page=${p}`, active: p === current });
-        previous = p;
+        links.push({ label: String(page), url: `?page=${page}`, active: page === current });
+        previous = page;
     });
 
     links.prev = current > 1 ? `?page=${current - 1}` : null;
@@ -112,15 +79,28 @@ const pagination = computed(() => {
 
     return {
         links,
-        meta: { current_page: current, per_page: perPage },
-    };
+        meta: { current_page: current, per_page: perPage } };
 });
+
+const rechercher = (page = 1) => {
+    router.get(route('instancedepart.create'), {
+        ...filtres.value,
+        page }, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        only: ['departs'] });
+};
+
+const debouncedSearch = debounce((page = 1) => rechercher(page), 350);
+
+watch(filtres, () => debouncedSearch(1), { deep: true });
+onBeforeUnmount(() => debouncedSearch.cancel());
 
 const goToPage = (url) => {
     if (!url) return;
-    const params = new URLSearchParams(url.split('?')[1]);
-    const next = Number(params.get('page'));
-    if (next) currentPage.value = next;
+    const next = Number(new URLSearchParams(url.split('?')[1]).get('page'));
+    if (next) rechercher(next);
 };
 
 const prevPage = () => {
@@ -130,11 +110,8 @@ const prevPage = () => {
 const nextPage = () => {
     if (pagination.value.links?.next) goToPage(pagination.value.links.next);
 };
- 
-// Compter le nombre total de courrier
-const totalCourrier = computed(() => {
-    return props.departs.filter(totalarrivee => !!totalarrivee.txt_numdordrecd).length;
-});
+
+const totalCourrier = computed(() => Number((props.departs?.meta || props.departs)?.total || 0));
  
 // filtrer les instances par categorie  
 const formatDate = (dateString) => {
@@ -142,8 +119,7 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
         day: '2-digit',
         month: '2-digit',
-        year: 'numeric',
-    });
+        year: 'numeric' });
 };
  
 function supprimerCourrierDepart(depart) {
@@ -176,7 +152,7 @@ function supprimerCourrierDepart(depart) {
             </h2>
             
             <!-- Vérification pour afficher un message si aucune donnée -->
-            <template v-if="(!props.departs || props.departs.length === 0)">
+            <template v-if="!stats?.total">
                 <p>Aucun Instance Départ n'est trouvé.</p>
             </template>
            
@@ -204,30 +180,28 @@ function supprimerCourrierDepart(depart) {
                                     </h1>  
 
                                     <form @submit.prevent class="flex flex-wrap items-center gap-2">
+
+                                        <BaseInput v-model="filtres.numeroTF" type="search" placeholder="N° Titre" wrapper-class="w-28" />
+                                        <BaseInput v-model="filtres.numLot" type="search" placeholder="N° LOT" wrapper-class="w-28" />
+                                        <BaseInput v-model="filtres.prenom" type="search" placeholder="Prénom Nom" wrapper-class="w-32" />
+                                        <BaseInput v-model="filtres.annee" type="search"maxlength="4" placeholder="année" wrapper-class="w-20" />
                                         <BaseInput
-                                            v-model="annee"
-                                            type="search"
-                                            maxlength="4"
-                                            placeholder="année"
-                                            wrapper-class="w-20"
-                                        />
-                                        <BaseInput
-                                            v-model="numeroCD"
+                                            v-model="filtres.numero"
                                             type="search"
                                             placeholder="N° Ordre"
                                             wrapper-class="w-28"
                                         />
                                         <BaseInput
-                                            v-model="refCA"
+                                            v-model="filtres.reference"
                                             type="search"
                                             placeholder="Référence C.A"
                                             wrapper-class="w-36"
                                         />
                                         <BaseSelect
-                                            v-model="refCourrierArrivee"
-                                            :options="uniqueReferences"
-                                            placeholder="Refetrence C.Arrivées"
-                                            wrapper-class="w-44"
+                                            v-model="filtres.objetcourrier"
+                                            :options="uniqueObjetcourrier"
+                                            placeholder="Objet Courrier"
+                                            wrapper-class="w-72"
                                         />
                                     </form>
                                 </div>
@@ -287,7 +261,7 @@ function supprimerCourrierDepart(depart) {
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ depart.txt_prenomNomcd || '' }}</td>
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ depart.txt_numLotcd || '' }}</td>
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ depart.txt_superficiecd || '' }}</td>
-                                                <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ depart.txt_numTFcd || '' }}</td>
+                                                <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ depart.txt_numTitreFonciercd || '' }}</td>
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ depart.txt_lotissementcd || '' }}</td>
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ formatDate(depart.dt_dateenvoicd) || '' }}</td>
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ depart.txt_referencereceptioncd || '' }}</td>
@@ -307,22 +281,8 @@ function supprimerCourrierDepart(depart) {
                                                 </td>
                                                 <td class="sticky right-0 z-8 px-2 py-1 border bg-white whitespace-nowrap">
                                                     <div class="flex justify-center gap-2">
-                                                        <InertiaLink :href="`/depart/editdepart/${depart.id}`">
-                                                            <MazBtn
-                                                                size="large"
-                                                                class="h-6 w-6 text-white bg-gradient-to-r from-green-500 via-green-600 to-green-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-xs px-5 py-2.5 text-center"
-                                                            >
-                                                                ✏️
-                                                            </MazBtn>
-                                                        </InertiaLink>
-                                                        <MazBtn
-                                                            size="large"
-                                                            color="danger"
-                                                            @click="() => supprimerCourrierDepart(depart)"
-                                                            class="h-6 w-6 text-white bg-gradient-to-r from-red-500 via-red-600 to-red-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-xs px-5 py-2.5 text-center"
-                                                        >
-                                                            🗑
-                                                        </MazBtn>
+                                                        <BoutonModifier :href="`/depart/editdepart/${depart.id}`" />
+                                                        <BoutonSupprimer @click="() => supprimerCourrierDepart(depart)" />
                                                     </div>
                                                 </td>
                                             </tr>

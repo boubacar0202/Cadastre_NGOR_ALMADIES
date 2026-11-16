@@ -28,7 +28,9 @@ return new class extends Migration
             $table->string('txt_prenomNom')->nullable();
             $table->string('txt_numLot')->nullable();
             $table->string('txt_superficie')->nullable();
-            $table->string('txt_numTF')->nullable();
+            $table->string('txt_numTitreMere')->nullable();
+            $table->string('txt_numTitreFoncier')->nullable();
+            $table->string('txt_NICAD')->nullable();
             $table->string('txt_lotissement')->nullable();
             $table->date('dt_date')->nullable();
             $table->string('txt_heure')->nullable();

@@ -8,23 +8,18 @@ import { onMounted, ref, watch, watchEffect } from "vue";
 import axios from "axios";
 import { toast } from "@/Components/AppToast";  
 import DefaultLayout from "@/Layouts/DefaultLayout.vue";
-import { Inertia } from '@inertiajs/inertia';
 
 defineOptions({ layout: DefaultLayout });
   
 // Form
 const form = useForm({
-    txt_nomPoint: "",
-    txt_dateCreationPoint: "",
+    txt_denomination: "",
+    txt_nombreParcelle: "",
     slt_departement: null,
     slt_arrondissement: null,
     slt_commune: null,
-    txt_descriptionPoint: "",
-    txt_situationPoint: "",
-    txt_estPoint: "",
-    txt_nordPoint: "",
-    txt_hauteurPoint: "",
-    txt_documentsAfferantsPoint: ""
+    txt_surfaceLotissement: "",
+    txt_documentsAfferants: null,
 });
 
 // Sélections
@@ -34,7 +29,7 @@ const slt_commune = ref(null);
 const departements = ref([]);
 const arrondissements = ref([]);
 const communes = ref([]);
-const fichierPDF = ref(null);
+const fichierKey = ref(0);
  
 // départements
 const fetchDepartements = async () => {
@@ -50,9 +45,12 @@ const fetchDepartements = async () => {
 
 // arrondissements selon le département
 const fetchArrondissements = async () => {
+    slt_arrondissement.value = null;
+    slt_commune.value = null;
+    communes.value = [];
+
     if (!slt_departement.value) {
         arrondissements.value = [];
-        slt_arrondissement.value = null;
         return;
     }
 
@@ -68,9 +66,10 @@ const fetchArrondissements = async () => {
 
 // communes selon l’arrondissement
 const fetchCommunes = async () => {
+    slt_commune.value = null;
+
     if (!slt_arrondissement.value) {
         communes.value = [];
-        slt_commune.value = null;
         return;
     }
 
@@ -96,8 +95,16 @@ onMounted(fetchDepartements);
 
 // Fichier PDF 
 const handleFileUpload = (event) => {
-    fichierPDF.value = event.target.files[0];
-    form.txt_documentsAfferantsPoint = fichierPDF.value; // lier directement au formulaire
+    const fichier = event.target.files?.[0] ?? null;
+
+    if (fichier && fichier.type !== "application/pdf") {
+        form.txt_documentsAfferants = null;
+        event.target.value = "";
+        toast.error("Veuillez sélectionner un fichier PDF.");
+        return;
+    }
+
+    form.txt_documentsAfferants = fichier;
 };
  
 // Submit
@@ -108,12 +115,19 @@ const submitForm = () => {
     form.slt_commune = slt_commune.value || "";
 
     form.post(route('parametre.store'), {
+        forceFormData: true,
         onSuccess: (page) => {
-            toast.success(page.props.flash?.success || "✅ Dossier Lotissement enregistré !");
-            Inertia.visit(route("parametre.lotissement.create"), { replace: true });
+            toast.success(page.props.flash?.success || "✅ Lotissement enregistré !");
+            slt_departement.value = null;
+            slt_arrondissement.value = null;
+            slt_commune.value = null;
+            arrondissements.value = [];
+            communes.value = [];
+            form.reset();
+            fichierKey.value += 1;
         },
         onError: (errors) => {
-            Object.values(errors).forEach(msg => toast.error(msg));
+            Object.values(errors).flat().forEach((msg) => toast.error(msg));
         }
     });
 };
@@ -202,6 +216,7 @@ const submitForm = () => {
                                     />
  
                                     <BaseInput
+                                        :key="fichierKey"
                                         class="sm:col-span-4"
                                         label="Documents Afférants" 
                                         accept="application/pdf"

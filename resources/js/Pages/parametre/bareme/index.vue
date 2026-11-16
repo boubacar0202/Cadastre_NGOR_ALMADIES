@@ -7,6 +7,7 @@ import DeleteModal from "@/Components/DeleteModal.vue";
 import { toast } from "@/Components/AppToast";
 import { Head, router, useForm } from "@inertiajs/vue3";
 import MazBtn from "maz-ui/components/MazBtn";
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
 import { computed, ref, watch } from "vue";
 import axios from "axios";
 
@@ -259,13 +260,7 @@ const confirmerSuppression = async ({ adminCode } = {}) => {
                                             >
                                                 Enregistrer
                                             </button>
-                                            <button
-                                                type="button"
-                                                class="h-8 text-white bg-red-500 via-red-600 to-red-700 font-medium rounded-xl text-xs px-3"
-                                                @click="demanderSuppression(ligne)"
-                                            >
-                                                Supprimer
-                                            </button>
+                                            <BoutonSupprimer @click="demanderSuppression(ligne)" />
                                         </td>
                                     </tr>
                                     <tr v-if="lignesFiltrees.length === 0">

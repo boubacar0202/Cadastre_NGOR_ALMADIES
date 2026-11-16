@@ -1,150 +1,62 @@
 <script setup>
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
+import BoutonModifier from "@/Components/BoutonModifier.vue";
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import BaseInput from '@/Components/BaseInput.vue';
 import BaseSelect from '@/Components/BaseSelect.vue';
-import { ref, computed, watch, nextTick } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import { defineProps, onMounted } from 'vue';
-import { router, usePage  } from '@inertiajs/vue3'
-import { Link as InertiaLink } from '@inertiajs/vue3'  
- 
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
+import { Head, router } from '@inertiajs/vue3';
+import { debounce } from 'lodash';
+
 const props = defineProps({
-    arrivee: Object,    
-    arrivees: Array,  
-});
-   
-const mois = ref('');
-const numeroCA = ref('');  
-const annee = ref(''); 
+    arrivees: {
+        type: Object,
+        default: () => ({
+            data: [],
+            current_page: 1,
+            last_page: 1,
+            per_page: 15,
+            total: 0 }) },
+    designations: {
+        type: Array,
+        default: () => [] },
+    stats: {
+        type: Object,
+        default: () => ({
+            total: 0,
+            totalCourrier: 0,
+            convocations72h: 0,
+            convocationsProches: [] }) },
+    filters: {
+        type: Object,
+        default: () => ({}) } });
+
+const filters = ref({
+    mois: props.filters?.mois || '',
+    annee: props.filters?.annee || '',
+    numeroTF: props.filters?.numeroTF || '',
+    numLot: props.filters?.numLot || '',
+    prenom: props.filters?.prenom || '',
+    reference: props.filters?.reference || '',
+    designation: props.filters?.designation || '' });
+
 const rowRefs = ref({});
-const refCourrierArrivee = ref('');
-const prenomNomCourrierArrivee = ref('');
-const refDesignation = ref(''); 
-const selectedDate = ref(''); 
+const cibleConvocation = ref(null);
 
-// Normalisation pour éviter les problèmes d'espaces et de casse
-function normalize(str) {
-    return str?.toString().trim().toLowerCase();
-}
-  
-// Calculer les désignations uniques pour le filtre
-const uniqueDesignations = computed(() => {
-    return Array.from(
-        new Set(
-            props.arrivees
-                .filter(a => {
-                    if (!selectedDate.value) return true;
+const uniqueDesignations = computed(() => props.designations || []);
 
-                    const date = a.dt_datearrivee ? new Date(a.dt_datearrivee) : null;
-                    if (!date) return false;
+const pageMeta = computed(() => props.arrivees?.meta || props.arrivees || {});
 
-                    return date.toISOString().startsWith(selectedDate.value);
-                })
-                .map(a => a.txt_designation || '')
-                .filter(d => d.trim() !== '')
-        )
-    );
-});
+const paginatedArrivees = computed(() => (
+    Array.isArray(props.arrivees) ? props.arrivees : (props.arrivees?.data || [])
+));
 
-// ⚡ Ajout du tri par numéro d'ordre d'arrivée
-const filtereArrivees = computed(() => {
-    const now = new Date();
-    const searchMois = normalize(mois.value || '') // ex: "01", "02", ..., "12"
-    const searchDesignation = normalize(refDesignation.value || '')
- 
-    const addLateFlag = (arrivee) => {
-        const dtDate = arrivee.dt_date ? new Date(arrivee.dt_date) : null;
-
-        return {
-            ...arrivee,
-            isLateConvocation:
-                arrivee.txt_categorie === 'Convocation - Invitation' &&
-                dtDate &&
-                (dtDate - now) > 0 && // date future
-                (dtDate - now) <= (72 * 60 * 60 * 1000) // <= 72h
-        };
-    };
-
-    const filtered = props.arrivees.filter(arrivee => {
-        // 🔥 récupération du mois depuis la date
-        const date = arrivee.dt_datearrivee
-        const moisTerrain = date ? new Date(date).getMonth() + 1 : null // 1 à 12 
-        const matchMois = !searchMois || moisTerrain == parseInt(searchMois)
-        const designation = normalize(arrivee.txt_designation || '')
- 
-        const matchDesignation = !searchDesignation || designation.includes(searchDesignation) 
- 
-        const matchNumero = numeroCA.value
-            ? normalize(arrivee.txt_numdordre)?.includes(normalize(numeroCA.value))
-            : true;
-
-        const matchAnnee = annee.value
-            ? new Date(arrivee.dt_datearrivee).getFullYear().toString() === annee.value
-            : true;
-
-        const matchArrivee = refCourrierArrivee.value
-            ? normalize(arrivee.txt_reference)?.includes(normalize(refCourrierArrivee.value))
-            : true;
-
-        const matchPrenomNom = prenomNomCourrierArrivee.value
-            ? normalize(arrivee.txt_prenomNom)?.includes(normalize(prenomNomCourrierArrivee.value))
-            : true;
-
-        return matchDesignation && matchMois && matchNumero && matchAnnee && matchArrivee && matchPrenomNom;
-    }); 
-    // ⚡ ajout du tri ici 
-    const sorted = filtered.sort((a, b) => {
-
-        const parseNumero = (value) => {
-
-            if (!value) {
-                return { principal: 0, secondaire: 0 };
-            }
-
-            const first = value.split('/')[0]; 
-            const [principal, secondaire] = first.split('_');
-
-            return {
-                principal: parseInt(principal || 0, 10),
-                secondaire: parseInt(secondaire || 0, 10)
-            };
-        };
-
-        const A = parseNumero(a.txt_numdordre);
-        const B = parseNumero(b.txt_numdordre);
-
-        if (A.principal !== B.principal) {
-            return A.principal - B.principal;
-        }
-
-        return A.secondaire - B.secondaire;
-    });
-
-    return sorted.map(addLateFlag);
-});
-
-const perPage = 15;
-const currentPage = ref(1);
-
-watch(
-    [mois, annee, numeroCA, refCourrierArrivee, prenomNomCourrierArrivee, refDesignation],
-    () => {
-        currentPage.value = 1;
-    }
-);
-
-const lastPage = computed(() => Math.max(1, Math.ceil(filtereArrivees.value.length / perPage)));
-
-const page = computed(() => Math.min(Math.max(currentPage.value, 1), lastPage.value));
-
-const paginatedArrivees = computed(() => {
-    const start = (page.value - 1) * perPage;
-    return filtereArrivees.value.slice(start, start + perPage);
-});
+const filtereArrivees = paginatedArrivees;
 
 const pagination = computed(() => {
-    const current = page.value;
-    const last = lastPage.value;
+    const current = pageMeta.value.current_page || 1;
+    const last = Math.max(1, pageMeta.value.last_page || 1);
+    const perPage = pageMeta.value.per_page || 15;
     const pages = new Set([1, last, current, current - 1, current + 1, current - 2, current + 2]);
     const sorted = [...pages].filter((p) => p >= 1 && p <= last).sort((a, b) => a - b);
     const links = [];
@@ -163,15 +75,47 @@ const pagination = computed(() => {
 
     return {
         links,
-        meta: { current_page: current, per_page: perPage },
-    };
+        meta: { current_page: current, per_page: perPage } };
 });
+
+const mettreEnEvidence = async (txtNumdordre) => {
+    await nextTick();
+    const row = rowRefs.value[txtNumdordre];
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('bg-primary-only');
+    setTimeout(() => row.classList.remove('bg-primary-only'), 5000);
+};
+
+const rechercher = (page = 1) => {
+    router.get(route('instancearrivee.create'), {
+        ...filters.value,
+        page }, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        only: ['arrivees'],
+        onSuccess: () => {
+            if (!cibleConvocation.value) return;
+            const cible = cibleConvocation.value;
+            cibleConvocation.value = null;
+            mettreEnEvidence(cible);
+        } });
+};
+
+const debouncedSearch = debounce((page = 1) => rechercher(page), 350);
+
+watch(filters, () => {
+    debouncedSearch(1);
+}, { deep: true });
+
+onBeforeUnmount(() => debouncedSearch.cancel());
 
 const goToPage = (url) => {
     if (!url) return;
     const params = new URLSearchParams(url.split('?')[1]);
     const next = Number(params.get('page'));
-    if (next) currentPage.value = next;
+    if (next) rechercher(next);
 };
 
 const prevPage = () => {
@@ -181,27 +125,10 @@ const prevPage = () => {
 const nextPage = () => {
     if (pagination.value.links?.next) goToPage(pagination.value.links.next);
 };
- 
-// Compter le nombre d'invitation dans 72H 
-const totalConvocationsImminentes = computed(() => {
-    const now = new Date();
 
-    return props.arrivees.filter(arrivee => {
-        const dtDate = arrivee.dt_date ? new Date(arrivee.dt_date) : null;
+const totalConvocationsImminentes = computed(() => props.stats?.convocations72h || 0);
 
-        return (
-            arrivee.txt_categorie === 'Convocation - Invitation' &&
-            dtDate &&
-            (dtDate - now) > 0 &&
-            (dtDate - now) <= (72 * 60 * 60 * 1000)
-        );
-    }).length;
-});
- 
-// Compter le nombre total de courrier
-const totalCourrier = computed(() => {
-    return props.arrivees.filter(totalarrivee => !!totalarrivee.txt_numdordre).length;
-});
+const totalCourrier = computed(() => Number((props.arrivees?.meta || props.arrivees)?.total || 0));
 
 // format de la date
 const formatDate = (dateString) => {
@@ -209,8 +136,7 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
         day: '2-digit',
         month: '2-digit',
-        year: 'numeric',
-    });
+        year: 'numeric' });
 };
 
 // fonction d'envoi du formulaire
@@ -227,48 +153,15 @@ function supprimerCourrierArrivee(arrivee) {
         });
     }
 } 
-// Liste filtrée (même logique mais sans length)
-const convocationsDans48h = computed(() => {
-    const now = new Date();
+const convocationProche = computed(() => props.stats?.convocationsProches || []);
 
-    return props.arrivees.filter(arrivee => {
-        const dtDate = arrivee.dt_date ? new Date(arrivee.dt_date) : null;
-
-        return (
-            arrivee.txt_categorie === 'Convocation - Invitation' &&
-            dtDate &&
-            dtDate > now && 
-            (dtDate - now) <= 48 * 60 * 60 * 1000
-        );
-    });
-}); 
-// 👉 Convocation(s) la/les plus proche(s)
-const convocationProche = computed(() => {
-    if (!convocationsDans48h.value.length) return null;
-
-    // Prendre la date la plus proche
-    const minDate = Math.min(
-        ...convocationsDans48h.value.map(c => new Date(c.dt_date).getTime())
-    );
-
-    // Retourner toutes celles qui ont cette même date
-    return convocationsDans48h.value.filter(
-        c => new Date(c.dt_date).getTime() === minDate
-    );
-}); 
-// Fonction pour faire défiler jusqu'à la convocation
-const goToConvocation = async (txt_numdordre) => {
-    const index = filtereArrivees.value.findIndex((arrivee) => arrivee.txt_numdordre === txt_numdordre);
-    if (index >= 0) {
-        currentPage.value = Math.floor(index / perPage) + 1;
+const goToConvocation = (txt_numdordre) => {
+    cibleConvocation.value = txt_numdordre;
+    if (filters.value.numero === txt_numdordre) {
+        mettreEnEvidence(txt_numdordre);
+        return;
     }
-    await nextTick();
-    const row = rowRefs.value[txt_numdordre];
-    if (row) {
-        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        row.classList.add('bg-primary-only');
-        setTimeout(() => row.classList.remove('bg-primary-only'), 5000);
-    }
+    filters.value.numero = txt_numdordre;
 };
 const formatDateDMY = (dateStr) => {
     if (!dateStr) return '-';
@@ -296,7 +189,7 @@ const formatDateDMY = (dateStr) => {
             </h2>
             
             <!-- Vérification pour afficher un message si aucune donnée -->
-            <template class="text-xl font-semibold leading-tight text-primary-txt" v-if="(!arrivees || arrivees.length === 0)">
+            <template class="text-xl font-semibold leading-tight text-primary-txt" v-if="!stats?.total">
                 <p>Aucun Courrier arrivée trouvé.</p>
             </template>
            
@@ -347,13 +240,14 @@ const formatDateDMY = (dateStr) => {
                                     </p>
  
                                     <form @submit.prevent class="flex flex-wrap items-center gap-2">
-                                        <BaseInput v-model="mois" type="search" maxlength="4" placeholder="Mois" wrapper-class="w-20" />
-                                        <BaseInput v-model="annee" type="search" maxlength="4" placeholder="Années" wrapper-class="w-20" />
-                                        <BaseInput v-model="numeroCA" type="search" placeholder="N° Ordre" wrapper-class="w-28" />
-                                        <BaseInput v-model="prenomNomCourrierArrivee" type="search" placeholder="Prénom Nom" wrapper-class="w-32" />
-                                        <BaseInput v-model="refCourrierArrivee" type="search" placeholder="Ref.C.A" wrapper-class="w-28" />
+                                        <BaseInput v-model="filters.mois" type="search" maxlength="4" placeholder="Mois" wrapper-class="w-20" />
+                                        <BaseInput v-model="filters.annee" type="search" maxlength="4" placeholder="Années" wrapper-class="w-20" />
+                                        <BaseInput v-model="filters.numeroTF" type="search" placeholder="N° Titre" wrapper-class="w-28" />
+                                        <BaseInput v-model="filters.numLot" type="search" placeholder="N° LOT" wrapper-class="w-28" />
+                                        <BaseInput v-model="filters.prenom" type="search" placeholder="Prénom Nom" wrapper-class="w-32" />
+                                        <BaseInput v-model="filters.reference" type="search" placeholder="Ref.C.A" wrapper-class="w-28" />
                                         <BaseSelect
-                                            v-model="refDesignation"
+                                            v-model="filters.designation"
                                             :options="uniqueDesignations"
                                             placeholder="Tous"
                                             wrapper-class="w-36"
@@ -382,7 +276,8 @@ const formatDateDMY = (dateStr) => {
                                                 <th class="px-2 py-2 text-xs text-primary text-center font-semibold whitespace-nowrap">Prénom Nom</th>
                                                 <th class="px-2 py-2 text-xs text-primary text-center font-semibold whitespace-nowrap">N° LOT</th>
                                                 <th class="px-2 py-2 text-xs text-primary text-center font-semibold whitespace-nowrap">Superficie</th>
-                                                <th class="px-2 py-2 text-xs text-primary text-center font-semibold whitespace-nowrap">N° TF</th>
+                                                <th class="px-2 py-2 text-xs text-primary text-center font-semibold whitespace-nowrap">Titre foncier</th>
+                                                <th class="px-2 py-2 text-xs text-primary text-center font-semibold whitespace-nowrap">N° Titre Mère</th>
                                                 <th class="px-2 py-2 text-xs text-primary text-center font-semibold whitespace-nowrap">Lotissement</th>
                                                 <th class="px-2 py-2 text-xs text-primary text-center font-semibold whitespace-nowrap">Date</th>
                                                 <th class="px-2 py-2 text-xs text-primary text-center font-semibold whitespace-nowrap">Heure</th>
@@ -418,7 +313,8 @@ const formatDateDMY = (dateStr) => {
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_prenomNom || '' }}</td>
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_numLot || '' }}</td>
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_superficie || '' }}</td>
-                                                <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_numTF || '' }}</td>
+                                                <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_numTitreFoncier || '' }}</td>
+                                                <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_numTitreMere || '' }}</td>
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_lotissement || '' }}</td>
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ formatDate(arrivee.dt_date) || '' }}</td>
                                                 <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_heure || '' }}</td>
@@ -441,22 +337,8 @@ const formatDateDMY = (dateStr) => {
                                                 </td>
                                                 <td class="sticky right-0 z-8 px-2 py-1 border bg-white whitespace-nowrap">
                                                     <div class="flex justify-center gap-2">
-                                                        <InertiaLink :href="route('arrivee.edit', arrivee.id)">
-                                                            <MazBtn
-                                                                size="large"
-                                                                class="h-6 w-6 text-white bg-gradient-to-r from-green-500 via-green-600 to-green-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-xs px-5 py-2.5 text-center"
-                                                            >
-                                                                ✏️
-                                                            </MazBtn>
-                                                        </InertiaLink>
-                                                        <MazBtn
-                                                            size="large"
-                                                            color="danger"
-                                                            @click="() => supprimerCourrierArrivee(arrivee)"
-                                                            class="h-6 w-6 text-white bg-gradient-to-r from-red-500 via-red-600 to-red-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-xs px-5 py-2.5 text-center"
-                                                        >
-                                                            🗑
-                                                        </MazBtn>
+                                                        <BoutonModifier :href="route('arrivee.edit', arrivee.id)" />
+                                                        <BoutonSupprimer @click="() => supprimerCourrierArrivee(arrivee)" />
                                                     </div>
                                                 </td>
                                             </tr>

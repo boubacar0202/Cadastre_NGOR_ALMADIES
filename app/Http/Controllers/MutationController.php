@@ -24,11 +24,7 @@ class MutationController extends Controller
 
     public function create()
     {
-        $terrains = Terrain::all();
-
-        return Inertia::render("mutation/create", [
-            "terrains" => $terrains,
-        ]);
+        return Inertia::render("mutation/create");
     }
 
     // ============================================================

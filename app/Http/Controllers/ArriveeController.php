@@ -95,7 +95,9 @@ class ArriveeController extends Controller
             'txt_prenomNom'      => 'nullable|string|max:255',
             'txt_numLot'         => 'nullable|string|max:255',
             'txt_superficie'     => 'nullable|string|max:255',
-            'txt_numTF'          => 'nullable|string|max:255',
+            'txt_numTitreMere'   => 'nullable|string|max:25',
+            'txt_numTitreFoncier' => 'nullable|string|max:255',
+            'txt_NICAD'          => 'nullable|string|max:25',
             'txt_lotissement'    => 'nullable|string|max:255',
             'dt_date'            => 'nullable|date',
             'txt_heure'          => 'nullable|string|max:255',
@@ -126,6 +128,9 @@ class ArriveeController extends Controller
             'txt_agenttraiteur.required' => 'L\'agent traitant est requis.',
             'fichierPDF.mimes'         => 'Le fichier doit être au format PDF.',
             'fichierPDF.max'           => 'La taille du fichier ne doit pas dépasser 120 Mo.',
+            'txt_numTitreMere.max' => 'Le numéro du titre mère ne doit pas dépasser 25 caractères.',
+            'txt_numTitreFoncier.max' => 'Le numéro du titre foncier ne doit pas dépasser 255 caractères.',
+            'txt_NICAD.max' => 'Le NICAD ne doit pas dépasser 25 caractères.',
         ]);
 
         // Gestion du fichier PDF 
@@ -148,7 +153,8 @@ class ArriveeController extends Controller
             'txt_prenomNom' => $validateData['txt_prenomNom'] ?? null,
             'txt_numLot' => $validateData['txt_numLot'] ?? null,
             'txt_superficie' => $validateData['txt_superficie'] ?? null,
-            'txt_numTF' => $validateData['txt_numTF'] ?? null,
+            'txt_numTitreMere' => $validateData['txt_numTitreMere'] ?? null,
+            'txt_numTitreFoncier' => $validateData['txt_numTitreFoncier'] ?? null,
             'txt_lotissement' => $validateData['txt_lotissement'] ?? null,  
             'dt_date' => $validateData['dt_date'] ?? null,  
             'txt_heure' => $validateData['txt_heure'] ?? null,
@@ -216,7 +222,9 @@ class ArriveeController extends Controller
             'txt_prenomNom' => 'nullable|string|max:255',
             'txt_numLot' => 'nullable|string|max:255',
             'txt_superficie' => 'nullable|string|max:255',
-            'txt_numTF' => 'nullable|string|max:255',
+            'txt_numTitreMere' => 'nullable|string|max:25',
+            'txt_numTitreFoncier' => 'nullable|string|max:255',
+            'txt_NICAD' => 'nullable|string|max:25',
             'txt_lotissement' => 'nullable|string|max:255',
             'dt_date' => 'nullable|date',
             'txt_heure' => 'nullable|string|max:255',
@@ -244,6 +252,9 @@ class ArriveeController extends Controller
             'txt_objet.required' => 'L\'objet du courrier est requis.',
             'txt_expediteur.required' => 'L\'expéditeur du courrier est requis.',
             'txt_agenttraiteur.required' => 'L\'agent traiteur du courrier est requis.',
+            'txt_numTitreMere.max' => 'Le numéro du titre mère ne doit pas dépasser 25 caractères.',
+            'txt_numTitreFoncier.max' => 'Le numéro du titre foncier ne doit pas dépasser 255 caractères.',
+            'txt_NICAD.max' => 'Le NICAD ne doit pas dépasser 25 caractères.',
      
         ]);
         
@@ -277,7 +288,8 @@ class ArriveeController extends Controller
             'txt_prenomNom' => $validateData['txt_prenomNom'] ?? null,
             'txt_numLot' => $validateData['txt_numLot'] ?? null,
             'txt_superficie' => $validateData['txt_superficie'] ?? null,
-            'txt_numTF' => $validateData['txt_numTF'] ?? null,
+            'txt_numTitreMere' => $validateData['txt_numTitreMere'] ?? null,
+            'txt_numTitreFoncier' => $validateData['txt_numTitreFoncier'] ?? null,
             'txt_lotissement' => $validateData['txt_lotissement'] ?? null,
             'dt_date' => $validateData['dt_date'] ?? null,  
             'txt_heure' => $validateData['txt_heure'] ?? null,

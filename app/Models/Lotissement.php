@@ -13,7 +13,6 @@ class Lotissement extends Model
     protected $fillable = [ 
         'txt_denomination',
         'txt_nombreParcelle',
-        'txt_denomination',
         'slt_departement',
         'slt_arrondissement',
         'slt_commune',

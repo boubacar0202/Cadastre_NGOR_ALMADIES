@@ -59,7 +59,9 @@ const form = useForm({
     txt_prenomNom: "",
     txt_numLot: "",
     txt_superficie: "",
-    txt_numTF: "",
+    txt_numTitreMere: "",
+    txt_numTitreFoncier: "",
+    txt_NICAD: "",
     txt_lotissement: "",
     dt_date: "",
     txt_heure: "",
@@ -192,12 +194,19 @@ watch(() => form.txt_categorie, (newValue) => {
     show.value = newValue === "Convocation - Invitation";
 });
 
-const showBail = ref(false); 
+const showDemandeServices = ref(false); 
 watch(
     [() => form.txt_designation, () => form.txt_typecourrier],
     ([designation, typecourrier]) => {
-        showBail.value =
-            (designation === "Demande de Régularisation par voie de Bail" || designation === "Demande de CIC") &&
+        showDemandeServices.value =
+            (designation === 'Morcellements' || designation === 'Réquisition d\'immatriculation' || designation === 'Demande Avis Technique' || 
+            designation === 'Demande de terrain/Echange' || designation === 'Prospection de terrain' || designation === 'Demande de situation foncière' || 
+            designation === 'Autorisation de construction' || designation === 'Demande d\'extraits de plan' || designation === 'Autorisation de lotir' || 
+            designation === 'Demande d\'états des lieux' || designation === 'Demande de délimitation' || designation === 'Demande de reconstruction' || 
+            designation === 'Réquisition DSCOS' || designation === 'Tribunal' || designation === 'Litiges' || designation === 'Demande de Cession définitive' || 
+            designation === 'Demande d\'évaluation' || designation === 'Demande de Cession définitive a Titre Gratuit' || designation === 'Demande de Régularisation par voie de Bail' || 
+            designation === 'Demande d\'attestation du Cadastre' || designation === 'Réceptions de lotissements' || designation === 'Demande de CIC' || 
+            designation === 'Duplication de CIC' || designation === 'Demande de Titre foncier' || designation === 'Autorisation de morceler') &&
             typecourrier !== "BE";
     }
 );
@@ -211,7 +220,7 @@ const designationsParCategorie = {
         'Réquisition DSCOS', 'Tribunal', 'Litiges','Demande de situation foncière', 'Demande de Cession définitive', 'Demande d\'évaluation',
         'Demande de Cession définitive a Titre Gratuit', 'Demande de Régularisation par voie de Bail', 'Demande d\'attestation du Cadastre', 
         'Réceptions de lotissements', 'Demande de CIC', 'Duplication de CIC', 'Demande de Titre foncier', 
-        'Autorisation de morceler'
+        'Autorisation de morceler', 'Notes de services',
     ],
     'Convocation - Invitation': ['Réunion', 'Audience Publique', 'Alerte', 'Visite de site', 
         'Rencontre', 'Randonnée', 'Marche', 'Session', 'Congré', 'Cérémonie', 'Inauguration',
@@ -301,13 +310,13 @@ const submitForm = function () {
                                     <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2">
                                         <BaseInput
                                             class="sm:col-span-1"
-                                            label="N° Dordre Arrivée"
+                                            label="N° d'ordre arrivée"
                                             name="txt_numdordre"
                                             autocomplete="on"
                                             v-model="form.txt_numdordre"
                                         />
                                         <BaseInput
-                                            v-if="showBail"
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
                                             label="N° BE"
                                             name="txt_numbordereau"
@@ -315,7 +324,7 @@ const submitForm = function () {
                                             v-model="form.txt_numbordereau"
                                         />
                                         <BaseInput
-                                            v-if="showBail"
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
                                             label="N° Dossier Foncier"
                                             name="txt_numdossier"
@@ -406,23 +415,31 @@ const submitForm = function () {
                                             }))"
                                         />
                                         <BaseInput
-                                            v-if="showBail"
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
-                                            label="Prénom et Nom"
+                                            label="Prénom et Nom / Société"
                                             name="txt_prenomNom"
                                             autocomplete="off"
                                             v-model="form.txt_prenomNom"
                                         />
                                         <BaseInput
-                                            v-if="showBail"
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
                                             label="N° Lot"
                                             name="txt_numLot"
                                             autocomplete="off"
                                             v-model="form.txt_numLot"
                                         />
+                                        <BaseInput
+                                            v-if="showDemandeServices"
+                                            class="sm:col-span-1"
+                                            label="N° Titre Mère"
+                                            name="txt_numTitreMere"
+                                            autocomplete="off"
+                                            v-model="form.txt_numTitreMere"
+                                        />
                                        <BaseInput
-                                            v-if="showBail"
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
                                             label="Superficie (m²)"
                                             name="txt_superficie"
@@ -432,21 +449,30 @@ const submitForm = function () {
                                             autocomplete="off"
                                             v-model="form.txt_superficie"
                                         />
-                                        <BaseInput
-                                            v-if="showBail"
+                                       <BaseInput
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
-                                            label="N° Titre Mère"
-                                            name="txt_numTF"
+                                            label="N° Titre Foncier"
+                                            name="txt_numTitreFoncier"
                                             autocomplete="off"
-                                            v-model="form.txt_numTF"
+                                            v-model="form.txt_numTitreFoncier"
                                         />
-                                        <BaseInput
-                                            v-if="showBail"
-                                            class="sm:col-span-2"
+                                        <BaseSelect
+                                            v-if="showDemandeServices"
+                                            class="sm:col-span-1"
                                             label="Lotissement"
                                             name="txt_lotissement"
                                             autocomplete="on"
                                             v-model="form.txt_lotissement"
+                                        />
+                                       <BaseInput
+                                            v-if="showDemandeServices"
+                                            class="sm:col-span-2"
+                                            label="NICAD"
+                                            name="txt_NICAD"
+                                            type="number"
+                                            autocomplete="off"
+                                            v-model="form.txt_NICAD"
                                         />
                                         <BaseInput
                                             v-if="show"
@@ -495,8 +521,7 @@ const submitForm = function () {
                                             autocomplete="on"
                                             v-model="form.txt_expediteur"
                                         />
-                                        <BaseSelect
-                                            class="sm:col-span-1"
+                                        <BaseSelect 
                                             label="Agent Traiteur"
                                             name="txt_agenttraiteur"
                                             autocomplete="off"
@@ -511,8 +536,7 @@ const submitForm = function () {
                                                 { value: 'Oumar Diop', label: 'Oumar Diop' },
                                             ]"
                                         />
-                                        <BaseSelect
-                                            class="sm:col-span-2"
+                                        <BaseSelect 
                                             label="Caractères"
                                             name="txt_caractere"
                                             autocomplete="off"
@@ -524,8 +548,7 @@ const submitForm = function () {
                                                 { value: 'Secret', label: 'Secret' },
                                             ]"
                                         />
-                                        <BaseInput
-                                            class="sm:col-span-2"
+                                        <BaseInput 
                                             label="Observation"
                                             name="txt_observation"
                                             autocomplete="off"

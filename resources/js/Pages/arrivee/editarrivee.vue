@@ -51,9 +51,21 @@ const form = useForm({
 
 const show = computed(() => form.txt_categorie === "Convocation - Invitation");
 
-const showBail = computed(() =>
-    (form.txt_designation === "Demande de Régularisation par voie de Bail" || form.txt_designation === "Demande de CIC") &&
-    form.txt_typecourrier !== "BE"
+const showDemandeServices = ref(false); 
+watch(
+    [() => form.txt_designation, () => form.txt_typecourrier],
+    ([designation, typecourrier]) => {
+        showDemandeServices.value =
+            (designation === 'Morcellements' || designation === 'Réquisition d\'immatriculation' || designation === 'Demande Avis Technique' || 
+            designation === 'Demande de terrain/Echange' || designation === 'Prospection de terrain' || designation === 'Demande de situation foncière' || 
+            designation === 'Autorisation de construction' || designation === 'Demande d\'extraits de plan' || designation === 'Autorisation de lotir' || 
+            designation === 'Demande d\'états des lieux' || designation === 'Demande de délimitation' || designation === 'Demande de reconstruction' || 
+            designation === 'Réquisition DSCOS' || designation === 'Tribunal' || designation === 'Litiges' || designation === 'Demande de Cession définitive' || 
+            designation === 'Demande d\'évaluation' || designation === 'Demande de Cession définitive a Titre Gratuit' || designation === 'Demande de Régularisation par voie de Bail' || 
+            designation === 'Demande d\'attestation du Cadastre' || designation === 'Réceptions de lotissements' || designation === 'Demande de CIC' || 
+            designation === 'Duplication de CIC' || designation === 'Demande de Titre foncier' || designation === 'Autorisation de morceler') &&
+            typecourrier !== "BE";
+    }
 );
 
 const designationsParCategorie = {
@@ -62,7 +74,7 @@ const designationsParCategorie = {
         "Réquisition DSCOS", "Tribunal", "Litiges", "Demande de situation foncière", "Demande de Cession définitive", "Demande d'évaluation",
         "Demande de Cession définitive a Titre Gratuit", "Demande de Régularisation par voie de Bail", "Demande d'attestation du Cadastre",
         "Réceptions de lotissements", "Demande de CIC", "Duplication de CIC", "Demande de Titre foncier",
-        "Autorisation de morceler",
+        "Autorisation de morceler", "Notes de services",
     ],
     "Convocation - Invitation": ["Réunion", "Audience Publique", "Alerte", "Visite de site",
         "Rencontre", "Randonnée", "Marche", "Session", "Congré", "Cérémonie", "Inauguration",
@@ -172,7 +184,8 @@ async function submit() {
         formData.append('txt_prenomNom', form.txt_prenomNom);
         formData.append('txt_numLot', form.txt_numLot);
         formData.append('txt_superficie', form.txt_superficie);
-        formData.append('txt_numTF', form.txt_numTF);
+        formData.append('txt_numTitreFoncier', form.txt_numTitreFoncier);
+        formData.append('txt_numTitreMere', form.txt_numTitreMere);
         formData.append('txt_lotissement', form.txt_lotissement);
         formData.append('dt_date', form.dt_date);
         formData.append('txt_heure', form.txt_heure);
@@ -237,279 +250,285 @@ async function submit() {
                         </div>
                         <!-- Corps du formulaire -->
                         <form @submit.prevent="submit" enctype="multipart/form-data">
+                                                 
                             <div class="p-6">
                                 <h5 class="text-lg text-primary-txt font-bold mb-4">
                                     Références du courrier
                                 </h5>
                                 <div class="mb-6">
-                                    <div
-                                        class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2"
-                                    >  
-                                         
+                                    <!-- Ligne 1 -->
+                                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2">
                                         <BaseInput
                                             class="sm:col-span-1"
-                                            label="N° Dordre Arrivée"
-                                            name="txt_numdordre" 
-                                            autocomplete="on" 
+                                            label="N° d'ordre arrivée"
+                                            name="txt_numdordre"
+                                            autocomplete="on"
                                             v-model="form.txt_numdordre"
-                                        />                                   
-                                        <BaseInput 
-                                            v-if="showBail"
+                                        />
+                                        <BaseInput
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
                                             label="N° BE"
-                                            name="txt_numbordereau" 
-                                            autocomplete="on"  
+                                            name="txt_numbordereau"
+                                            autocomplete="on"
                                             v-model="form.txt_numbordereau"
-                                        />         
-                                        <BaseInput 
-                                            v-if="showBail"
+                                        />
+                                        <BaseInput
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
                                             label="N° Dossier Foncier"
-                                            name="txt_numdossier" 
-                                            autocomplete="off"  
+                                            name="txt_numdossier"
+                                            autocomplete="off"
                                             v-model="form.txt_numdossier"
-                                        />                                                          
-                                        <BaseInput  
+                                        />
+                                        <BaseInput
                                             class="sm:col-span-1"
                                             label="Date Réception"
-                                            name="dt_datearrivee" 
-                                            autocomplete="off" 
+                                            name="dt_datearrivee"
+                                            autocomplete="off"
                                             type="date"
                                             required
                                             v-model="form.dt_datearrivee"
-                                        />                                                        
-                                        <BaseSelect 
+                                        />
+                                        <BaseSelect
                                             class="sm:col-span-1"
                                             label="Type de Courrier"
-                                            name="txt_typecourrier"   
-                                            id="txt_typecourrier" 
+                                            name="txt_typecourrier"
+                                            required
                                             v-model="form.txt_typecourrier"
                                             :options="[
                                                 { value: 'Individuel', label: 'Individuel' },
-                                                { value: 'BE', label: 'BE' }, 
+                                                { value: 'BE', label: 'BE' },
                                                 { value: 'BE à réponses Multiples', label: 'BE à réponses Multiples' },
                                             ]"
                                         />
                                     </div>
+
                                     <br />
-                                    <div
-                                        class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2"
-                                    >                                                                                                                 
-                                        <BaseInput  
+
+                                    <!-- Ligne 2 -->
+                                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                                        <BaseInput
                                             class="sm:col-span-1"
                                             label="N° Courrier du dossier"
-                                            name="txt_numcourier" 
-                                            autocomplete="off" 
+                                            name="txt_numcourier"
+                                            autocomplete="off"
                                             required
                                             v-model="form.txt_numcourier"
-                                        />                                                                                                                                                    
-                                        <BaseInput  
+                                        />
+                                        <BaseInput
                                             class="sm:col-span-1"
                                             label="Date Courrier"
-                                            name="dt_datecourier" 
+                                            name="dt_datecourier"
                                             type="date"
                                             :max="today"
-                                            autocomplete="off" 
+                                            autocomplete="off"
                                             required
                                             v-model="form.dt_datecourier"
-                                        />                                                                                                                                                                                                
-                                        <BaseInput  
+                                        />
+                                        <BaseInput
                                             class="sm:col-span-1"
                                             label="Réf.Courrier Arrivée"
-                                            name="txt_reference"  
-                                            autocomplete="off" 
+                                            name="txt_reference"
+                                            autocomplete="off"
                                             required
                                             v-model="form.txt_reference"
-                                        />                                                                                                                                                                                                                                     
-                                        <BaseSelect 
+                                        />
+                                        <BaseSelect
                                             class="sm:col-span-1"
                                             label="Catégorie"
-                                            name="txt_categorie"  
-                                            autocomplete="off" 
+                                            name="txt_categorie"
+                                            autocomplete="off"
                                             required
                                             id="txt_categorie"
-                                            v-model="form.txt_categorie" 
+                                            @change="handleCategorieChange"
+                                            v-model="form.txt_categorie"
                                             :options="[
-                                                {value:'Demande SERVICES', label:'Demande SERVICES'},
-                                                {value:'Convocation - Invitation', label:'Convocation - Invitation'},
-                                                {value:'Information', label:'Information'},
-                                                {value:'Réclamation - Signalement', label:'Réclamation - Signalement'},
-                                                {value:'Réquisition - Instruction', label:'Réquisition - Instruction'}
-                                            ]" 
-                                        /> 
-                                        <BaseSelect 
+                                                { value: 'Demande SERVICES', label: 'Demande SERVICES' },
+                                                { value: 'Convocation - Invitation', label: 'Convocation - Invitation' },
+                                                { value: 'Information', label: 'Information' },
+                                                { value: 'Réclamation - Signalement', label: 'Réclamation - Signalement' },
+                                                { value: 'Réquisition - Instruction', label: 'Réquisition - Instruction' },
+                                            ]"
+                                        />
+                                        <BaseSelect
                                             class="sm:col-span-2"
                                             label="Désignation"
-                                            name="txt_designation"  
-                                            autocomplete="off" 
+                                            name="txt_designation"
+                                            autocomplete="off"
                                             required
-                                            id="txt_designation" 
-                                            v-model="form.txt_designation" 
+                                            id="txt_designation"
+                                            v-model="form.txt_designation"
                                             :options="designations.map(designation => ({
                                                 value: designation,
                                                 label: designation
-                                            }))" 
-                                        />                                                                                                                                                                                                                                        
-                                        <BaseInput  
-                                            v-if="showBail" 
+                                            }))"
+                                        />
+                                        <BaseInput
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
-                                            label="Prénom et Nom"
-                                            name="txt_prenomNom"  
-                                            autocomplete="off"  
+                                            label="Prénom et Nom / Société"
+                                            name="txt_prenomNom"
+                                            autocomplete="off"
                                             v-model="form.txt_prenomNom"
-                                        />                                                                                                                                                                                                                                                                             
-                                        <BaseInput  
-                                            v-if="showBail" 
+                                        />
+                                        <BaseInput
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
                                             label="N° Lot"
-                                            name="txt_numLot"  
-                                            autocomplete="off"  
+                                            name="txt_numLot"
+                                            autocomplete="off"
                                             v-model="form.txt_numLot"
-                                        />                                                                                                                                                                                                                                                                                                                      
-                                        <BaseInput  
-                                            v-if="showBail" 
-                                            class="sm:col-span-1"
-                                            label="Superficie (m²)"
-                                            name="txt_superficie"  
-                                            autocomplete="off"  
-                                            v-model="form.txt_superficie"
-                                        />                                                                                                                                                                                                                                                                                                                                                                 
-                                        <BaseInput  
-                                            v-if="showBail" 
+                                        />
+                                        <BaseInput
+                                            v-if="showDemandeServices"
                                             class="sm:col-span-1"
                                             label="N° Titre Mère"
-                                            name="txt_numTF"  
-                                            autocomplete="off"  
-                                            v-model="form.txt_numTF"
-                                        />                                                                                                                                                                                                                                                                                                                                                                          
-                                        <BaseInput  
-                                            v-if="showBail" 
-                                            class="sm:col-span-2"
+                                            name="txt_numTitreMere"
+                                            autocomplete="off"
+                                            v-model="form.txt_numTitreMere"
+                                        />
+                                       <BaseInput
+                                            v-if="showDemandeServices"
+                                            class="sm:col-span-1"
+                                            label="Superficie (m²)"
+                                            name="txt_superficie"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            autocomplete="off"
+                                            v-model="form.txt_superficie"
+                                        />
+                                       <BaseInput
+                                            v-if="showDemandeServices"
+                                            class="sm:col-span-1"
+                                            label="N° Titre Foncier"
+                                            name="txt_numTitreFoncier"
+                                            autocomplete="off"
+                                            v-model="form.txt_numTitreFoncier"
+                                        />
+                                        <BaseSelect
+                                            v-if="showDemandeServices"
+                                            class="sm:col-span-1"
                                             label="Lotissement"
-                                            name="txt_lotissement"  
-                                            autocomplete="off"  
+                                            name="txt_lotissement"
+                                            autocomplete="on"
                                             v-model="form.txt_lotissement"
-                                        />                                                                                                                                                                                                                                                                                                                                                        
-                                        <BaseInput  
-                                            v-if="show" 
+                                        />
+                                       <BaseInput
+                                            v-if="showDemandeServices"
+                                            class="sm:col-span-2"
+                                            label="NICAD"
+                                            name="txt_NICAD"
+                                            type="number"
+                                            autocomplete="off"
+                                            v-model="form.txt_NICAD"
+                                        />
+                                        <BaseInput
+                                            v-if="show"
                                             class="sm:col-span-1"
                                             label="Date évenement"
-                                            name="dt_date"  
-                                            autocomplete="off"  
+                                            name="dt_date"
+                                            autocomplete="off"
                                             v-model="form.dt_date"
                                             type="date"
-                                        />                                                                                                                                                                                                                                                                                                                                                              
-                                        <BaseInput  
-                                            v-if="show" 
+                                        />
+                                        <BaseInput
+                                            v-if="show"
                                             class="sm:col-span-1"
                                             label="Heure évenement"
-                                            name="txt_heure"  
-                                            autocomplete="off"  
+                                            name="txt_heure"
+                                            autocomplete="off"
                                             v-model="form.txt_heure"
                                             type="time"
-                                        />                                                                                                                                                                                                                                                                                                                                                                 
-                                        <BaseInput  
-                                            v-if="show" 
+                                        />
+                                        <BaseInput
+                                            v-if="show"
                                             class="sm:col-span-1"
                                             label="Lieu évenement"
-                                            name="txt_lieu"  
-                                            autocomplete="off"  
+                                            name="txt_lieu"
+                                            autocomplete="off"
                                             v-model="form.txt_lieu"
-                                        />  
-                                        <BaseInput   
+                                        />
+                                        <BaseInput
                                             class="sm:col-span-1"
                                             label="Nombre de pièces"
-                                            name="txt_nombrepiece"  
-                                            autocomplete="off"  
+                                            name="txt_nombrepiece"
+                                            autocomplete="off"
                                             v-model="form.txt_nombrepiece"
-                                        />                          
-                                        <BaseInput   
+                                        />
+                                        <BaseInput
                                             class="sm:col-span-1"
                                             label="Objet"
-                                            name="txt_objet"  
-                                            autocomplete="off"  
+                                            name="txt_objet"
+                                            autocomplete="on"
                                             v-model="form.txt_objet"
-                                        />                                                                         
-                                        <BaseInput   
+                                        />
+                                        <BaseInput
                                             class="sm:col-span-1"
                                             label="Expéditeur"
-                                            name="txt_expediteur"  
-                                            autocomplete="off"  
+                                            name="txt_expediteur"
+                                            autocomplete="on"
                                             v-model="form.txt_expediteur"
-                                        /> 
+                                        />
                                         <BaseSelect 
-                                            class="sm:col-span-1"
                                             label="Agent Traiteur"
-                                            name="txt_agenttraiteur"  
-                                            autocomplete="off" 
+                                            name="txt_agenttraiteur"
+                                            autocomplete="off"
                                             required
-                                            id="txt_agenttraiteur" 
-                                            v-model="form.txt_agenttraiteur" 
+                                            id="txt_agenttraiteur"
+                                            v-model="form.txt_agenttraiteur"
                                             :options="[
-                                                { value: 'Saliou FAYE', label: 'Saliou FAYE' }, 
+                                                { value: 'Saliou FAYE', label: 'Saliou FAYE' },
                                                 { value: 'Moustapha Diop', label: 'Moustapha Diop' },
                                                 { value: 'Daouda Ndiaye', label: 'Daouda Ndiaye' },
                                                 { value: 'Abdoulaye Camara', label: 'Abdoulaye Camara' },
                                                 { value: 'Oumar Diop', label: 'Oumar Diop' },
                                             ]"
-                                        /> 
-
+                                        />
                                         <BaseSelect 
-                                            class="sm:col-span-2"
                                             label="Caractères"
-                                            name="txt_caractere"  
-                                            autocomplete="off" 
-                                            id="txt_caractere" 
-                                            v-model="form.txt_caractere" 
+                                            name="txt_caractere"
+                                            autocomplete="off"
+                                            id="txt_caractere"
+                                            v-model="form.txt_caractere"
                                             :options="[
                                                 { value: 'Confidentiel', label: 'Confidentiel' },
                                                 { value: 'Urgent', label: 'Urgent' },
                                                 { value: 'Secret', label: 'Secret' },
                                             ]"
-                                        />    
-
-                                        <BaseInput   
-                                            class="sm:col-span-2"
+                                        />
+                                        <BaseInput 
                                             label="Observation"
-                                            name="txt_observation"  
-                                            autocomplete="off"  
+                                            name="txt_observation"
+                                            autocomplete="off"
                                             v-model="form.txt_observation"
-                                        />  
-                                        
+                                        />
                                         <BaseInput
                                             type="file"
-                                            class="sm:col-span-4"
+                                            class="sm:col-span-2"
                                             label="Importer le Fichier PDF"
                                             name="fichierPDF"
                                             accept="application/pdf"
-                                            @change="handleFileChange"
+                                            @change="handleFileUpload"
                                         />
-                                                                                                            
-                                        <div v-if="existingPdf" class="sm:col-span-4 flex items-center gap-3 text-sm text-primary-txt">
-                                            <a :href="`/storage/${existingPdf}`" target="_blank" class="underline">
-                                                PDF actuel
-                                            </a>
-                                            <button type="button" class="text-red-600" @click="deleteFile(arrivees)">
-                                                Supprimer le PDF
-                                            </button>
-                                        </div>
-
                                     </div>
-                                    <br /> 
-                                </div> 
+                                    <br />
+                                </div>
 
                                 <!-- Bouton de soumission -->
-
                                 <div class="sm:col-span-6 flex justify-center">
-                                    <MazBtn 
-                                        type="submit" no-shadow no-hover-effect
+                                    <MazBtn
+                                        type="submit"
+                                        no-shadow
+                                        no-hover-effect
                                         class="w-64 h-10 text-white bg-gradient-to-r from-primary via-primary-dark 
                                             to-primary hover:bg-gradient-to-br focus:ring-4 focus:outline-none 
                                             focus:ring-blue-300 dark:focus:ring-blue-800 shadow-lg shadow-blue-500/50 
                                             dark:shadow-lg dark:shadow-blue-800/80 font-medium rounded-lg text-sm px-5 
                                             py-2.5 text-center me-2 mb-2"
-                                            size="medium"
-                                    > 
+                                        size="medium"
+                                    >
                                         Enregistrer
                                     </MazBtn>
                                 </div>

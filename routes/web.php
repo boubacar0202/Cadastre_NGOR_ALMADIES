@@ -21,10 +21,12 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MatriceCadastraleController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SecretariatController;
-use App\Http\Controllers\TerrainController; 
+use App\Http\Controllers\TerrainController;
+use App\Http\Controllers\TraitementDossierController; 
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MutationController;
 use App\Http\Controllers\ParametreController;
+use App\Http\Controllers\RechercheAvanceeController;
 use App\Http\Controllers\PlanController;  
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\ShapefileController;
@@ -186,6 +188,20 @@ Route::middleware('auth')->group(function () {
         Route::delete('/lotissement/destroy/{id}', [ParametreController::class, 'destroy'])->name('parametre.lotissement.destroy');
     });
  
+    // ✅ Traitement des dossiers : attribution par les administrateurs, validation par l'agent désigné
+    Route::get('/traitement-dossier/mes-dossiers', [TraitementDossierController::class, 'create'])->name('traitementDossier.create');
+    Route::get('/traitement-dossier/{attribution}', [TraitementDossierController::class, 'show'])->name('traitementDossier.show');
+    Route::post('/traitement-dossier/{attribution}/valider', [TraitementDossierController::class, 'valider'])
+        ->middleware('throttle:10,1')
+        ->name('traitementDossier.valider');
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/traitement-dossier', [TraitementDossierController::class, 'index'])->name('traitementDossier.index');
+        Route::post('/traitement-dossier', [TraitementDossierController::class, 'store'])->name('traitementDossier.store');
+        Route::put('/traitement-dossier/{attribution}/reattribuer', [TraitementDossierController::class, 'reattribuer'])->name('traitementDossier.reattribuer');
+        Route::post('/traitement-dossier/{attribution}/signer', [TraitementDossierController::class, 'signer'])->name('traitementDossier.signer');
+        Route::post('/traitement-dossier/{attribution}/annuler-signature', [TraitementDossierController::class, 'annulerSignature'])->name('traitementDossier.annulerSignature');
+    });
+
     // ✅ Paramétrages — réservé aux administrateurs
     Route::prefix('parametre')->middleware('role:admin')->group(function () {
         // 👤 Admin - Gestion des utilisateurs
@@ -221,6 +237,8 @@ Route::middleware('auth')->group(function () {
         
         // 📊 Chart / Évaluation - Page des graphiques
         Route::get('/chart', [ParametreController::class, 'chart'])->name('parametre.chart');
+        Route::get('/evaluation-user', [TraitementDossierController::class, 'evaluation'])->name('parametre.evaluation.user');
+        Route::get('/recherche-avancee', [RechercheAvanceeController::class, 'create'])->name('parametre.rechercheAvancee.create');
 
         // Recueil de textes
         Route::get('/service/create', [ServiceController::class, 'create'])->name('parametre.service.create');

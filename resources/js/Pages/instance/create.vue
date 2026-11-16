@@ -1,78 +1,117 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import BaseInput from '@/Components/BaseInput.vue';
-import { ref, computed  } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import { defineProps, onMounted } from 'vue';
-import { router, usePage  } from '@inertiajs/vue3'
-import { Link as InertiaLink } from '@inertiajs/vue3'
- 
+import BaseSelect from '@/Components/BaseSelect.vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
+import { Head, router } from '@inertiajs/vue3';
+import { debounce } from 'lodash';
+
 const props = defineProps({
-    arrivee: Object,    
-    arrivees: Array,
-    departs: Array,
-    depart: Object,
+    arrivees: {
+        type: Object,
+        default: () => ({
+            data: [],
+            current_page: 1,
+            last_page: 1,
+            per_page: 15,
+            total: 0,
+        }),
+    },
+    designations: {
+        type: Array,
+        default: () => [],
+    },
+    stats: {
+        type: Object,
+        default: () => ({ total: 0, enRetard: 0, totalGeneral: 0 }),
+    },
+    filters: {
+        type: Object,
+        default: () => ({}),
+    },
 });
-   
-const refCourrierArrivee = ref('');
- 
-// filtrer les instances par categorie  
-const filteredInstance = computed(() => {
-    const now = new Date();
 
-    const addIsOverdueFlag = (arrivee) => {
-        const dtCourrier = arrivee.dt_datearrivee ? new Date(arrivee.dt_datearrivee) : null;
+const filters = ref({
+    mois: props.filters?.mois || '',
+    annee: props.filters?.annee || '',
+    numeroTF: props.filters?.numeroTF || '',
+    numLot: props.filters?.numLot || '',
+    prenom: props.filters?.prenom || '',
+    reference: props.filters?.reference || '',
+    designation: props.filters?.designation || '',
+});
 
-        return {
-            ...arrivee,
-            isOverdue:
-                dtCourrier &&  
-                (now - dtCourrier) >= (10 * 24 * 60 * 60 * 1000) 
-        };
+const uniqueDesignations = computed(() => {
+    const liste = Array.isArray(props.designations)
+        ? props.designations
+        : Object.values(props.designations || {});
+
+    return [
+        { value: '', label: 'Toutes les désignations' },
+        ...liste.map((designation) => (
+            designation && typeof designation === 'object'
+                ? designation
+                : { value: designation, label: designation }
+        )),
+    ];
+});
+
+const pageMeta = computed(() => props.arrivees?.meta || props.arrivees || {});
+const filteredInstance = computed(() => (
+    Array.isArray(props.arrivees) ? props.arrivees : (props.arrivees?.data || [])
+));
+
+const pagination = computed(() => {
+    const current = pageMeta.value.current_page || 1;
+    const last = Math.max(1, pageMeta.value.last_page || 1);
+    const perPage = pageMeta.value.per_page || 15;
+    const pages = new Set([1, last, current, current - 1, current + 1, current - 2, current + 2]);
+    const sorted = [...pages].filter((page) => page >= 1 && page <= last).sort((a, b) => a - b);
+    const links = [];
+    let previous = 0;
+
+    sorted.forEach((page) => {
+        if (page - previous > 1) {
+            links.push({ label: '...', url: null, active: false });
+        }
+        links.push({ label: String(page), url: `?page=${page}`, active: page === current });
+        previous = page;
+    });
+
+    links.prev = current > 1 ? `?page=${current - 1}` : null;
+    links.next = current < last ? `?page=${current + 1}` : null;
+
+    return {
+        links,
+        meta: { current_page: current, per_page: perPage },
     };
-
-    // Fonction de normalisation pour la recherche insensible à la casse
-    const normalize = (text) => {
-        if (!text) return '';
-        return text.toString()
-            .toLowerCase()
-            .trim()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "");
-    };
-
-    return props.arrivees
-        .filter(arrivee => {
-            // Vérifie si le courrier existe déjà dans les départs
-            const existeDansDepart = props.departs.some(
-                depart => depart.txt_referencecourierarriveecd === arrivee.txt_reference
-            );
-
-            const isBEReponsesMultiples = arrivee.txt_typecourrier === 'BE à réponses Multiples';
-            
-            // Filtre principal par catégorie
-            const matchCategorie = arrivee.txt_categorie === 'Demande SERVICES' && !existeDansDepart && !isBEReponsesMultiples;
-            
-            // Filtre optionnel par référence
-            const searchTerm = refCourrierArrivee.value;
-            const matchArrivee = searchTerm
-                ? normalize(arrivee.txt_reference)?.includes(normalize(searchTerm))
-                : true;
-
-            return matchCategorie && matchArrivee;
-        })
-        .map(addIsOverdueFlag);
-});
-   
-// Compter le nombre d'instance
-const totalInstance = computed(() => {
-    return filteredInstance.value.filter(instance => instance.isOverdue).length;
 });
 
-// Compter le nombre total de courrier
-const totalCourrierInstance = computed(() => {
-    return filteredInstance.value.filter(totalCourrierInstance => !!totalCourrierInstance.txt_numdordre).length;
-});
+const rechercher = (page = 1) => {
+    router.get(route('instance.create'), {
+        ...filters.value,
+        page,
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        only: ['arrivees', 'stats'],
+    });
+};
+
+const debouncedSearch = debounce(() => rechercher(1), 350);
+
+watch(filters, () => debouncedSearch(), { deep: true });
+onBeforeUnmount(() => debouncedSearch.cancel());
+
+const goToPage = (url) => {
+    if (!url) return;
+    const next = Number(new URLSearchParams(url.split('?')[1]).get('page'));
+    if (next) rechercher(next);
+};
+
+const totalInstance = computed(() => props.stats?.enRetard || 0);
+const totalCourrierInstance = computed(() => props.stats?.total || 0);
 
 const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -97,7 +136,7 @@ const formatDate = (dateString) => {
             </h2>
             
             <!-- Vérification pour afficher un message si aucune donnée -->
-            <p v-if="!arrivees || arrivees.length === 0" class="mt-2 text-sm font-medium text-primary-txt">
+            <p v-if="!stats?.totalGeneral" class="mt-2 text-sm font-medium text-primary-txt">
                 Aucun courrier arrivée trouvé.
             </p>
            
@@ -113,7 +152,7 @@ const formatDate = (dateString) => {
 
                         <div class="p-6">
                             <div class="rounded-xl border border-primary-only bg-primary-form p-4">
-                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
                                     <h1 class="text-lg font-bold text-primary-txt">
                                         Instances 
                                         <span v-if="totalCourrierInstance>0" class="text-primary-txt">
@@ -129,13 +168,20 @@ const formatDate = (dateString) => {
                                         <span class="text-primary-dark">{{ totalInstance }}</span>
                                     </h2>
 
-                                    <BaseInput
-                                        v-model="refCourrierArrivee"
-                                        type="search"
-                                        id="default-search"
-                                        placeholder="Référence courrier arrivée"
-                                        wrapper-class="w-64"
-                                    />
+                                    <form @submit.prevent class="flex flex-wrap items-center gap-2">
+                                        <BaseInput v-model="filters.mois" type="search" maxlength="2" placeholder="Mois" wrapper-class="w-20" />
+                                        <BaseInput v-model="filters.annee" type="search" maxlength="4" placeholder="Années" wrapper-class="w-20" />
+                                        <BaseInput v-model="filters.numeroTF" type="search" placeholder="N° Titre" wrapper-class="w-28" />
+                                        <BaseInput v-model="filters.numLot" type="search" placeholder="N° LOT" wrapper-class="w-28" />
+                                        <BaseInput v-model="filters.prenom" type="search" placeholder="Prénom Nom" wrapper-class="w-32" />
+                                        <BaseInput v-model="filters.reference" type="search" placeholder="Référence courrier arrivée" wrapper-class="w-64" />
+                                        <BaseSelect
+                                            v-model="filters.designation"
+                                            :options="uniqueDesignations"
+                                            placeholder="Désignation"
+                                            wrapper-class="w-44"
+                                        />
+                                    </form>
                                 </div>
                             </div>
 
@@ -178,7 +224,7 @@ const formatDate = (dateString) => {
                                             :key="arrivee.id"
                                             class="h-8 bg-white text-xs font-semibold text-center text-primary-txt hover:bg-primary-form"
                                         >
-                                            <td class="sticky left-0 z-8 px-2 py-1 text-xs border bg-white whitespace-nowrap">{{ index + 1 }}</td>
+                                            <td class="sticky left-0 z-8 px-2 py-1 text-xs border bg-white whitespace-nowrap">{{ ((pagination.meta?.current_page || 1) - 1) * (pagination.meta?.per_page || 15) + index + 1 }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap" :class="arrivee.isOverdue ? 'text-red-600 font-bold' : ''">{{ arrivee.txt_numdordre }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_typecourrier || '-' }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_numbordereau || '-' }}</td>
@@ -222,6 +268,35 @@ const formatDate = (dateString) => {
                                         </tr>
                                     </tbody>
                                 </table>
+                            </div>
+
+                            <div class="mt-4 flex flex-wrap items-center gap-1 border-t pt-4">
+                                <button
+                                    @click="goToPage(pagination.links?.prev)"
+                                    :disabled="!pagination.links?.prev"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed bg-gray-200 hover:bg-gray-300 text-primary-txt"
+                                >
+                                    ← Précédent
+                                </button>
+                                <button
+                                    v-for="(link, linkIndex) in pagination.links"
+                                    :key="linkIndex"
+                                    @click="goToPage(link.url)"
+                                    :disabled="!link.url"
+                                    :class="[
+                                        'px-3.5 py-1.5 rounded-lg text-sm font-medium transition',
+                                        link.active ? 'bg-primary text-white shadow-md' : 'bg-gray-200 hover:bg-gray-300 text-primary-txt',
+                                        !link.url ? 'opacity-40 cursor-not-allowed' : ''
+                                    ]"
+                                    v-html="link.label"
+                                ></button>
+                                <button
+                                    @click="goToPage(pagination.links?.next)"
+                                    :disabled="!pagination.links?.next"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed bg-gray-200 hover:bg-gray-300 text-primary-txt"
+                                >
+                                    Suivant →
+                                </button>
                             </div>
                         </div>
                     </div>

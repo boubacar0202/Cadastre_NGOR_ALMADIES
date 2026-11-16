@@ -1,6 +1,8 @@
 <script setup>
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
+import BoutonModifier from "@/Components/BoutonModifier.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue"; 
-import { Link, Head, useForm, usePage } from '@inertiajs/vue3'; 
+import { Head, useForm, usePage } from '@inertiajs/vue3'; 
 import MazBtn from "maz-ui/components/MazBtn"; 
 import { computed, ref } from "vue";
 import axios from "axios";
@@ -35,8 +37,7 @@ const form = useForm({
     email: "",
     password: "",
     password_confirmation: "",
-    role: "",
-});
+    role: "" });
 
 const roleOptions = [
     { label: "Administrateur", value: "admin" },
@@ -68,8 +69,7 @@ const submitForm = () => {
         },
         onError: () => {
             toast.error("Veuillez corriger les champs du formulaire.");
-        },
-    });
+        } });
 }; 
 
 const props = defineProps({
@@ -312,26 +312,10 @@ const confirmerSuppressionUtilisateur = async ({ adminCode } = {}) => {
                                                     <td class="px-2 py-1 border whitespace-nowrap bg-primary-only">{{ user.role || '-' }}</td>
                                                     <td class="px-2 py-1 border flex justify-center gap-2">
                                                         <!-- Edit -->  
-                                                        <Link :href="`/parametre/adminEdit/${user.id}`">
-                                                            <MazBtn no-shadow no-hover-effect size="large" 
-                                                                class="h-9 w-8 text-white bg-gradient-to-r from-green-500 via-green-600 
-                                                                to-green-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none 
-                                                                focus:ring-green-300 dark:focus:ring-green-800 shadow-lg shadow-green-500/50 
-                                                                dark:shadow-lg dark:shadow-green-800/80 font-medium rounded-lg text-sm px-5 
-                                                                py-2.5 text-center me-2 mb-2">
-                                                                ✏️
-                                                            </MazBtn>
-                                                        </Link>
+                                                        <BoutonModifier :href="`/parametre/adminEdit/${user.id}`" />
                             
                                                         <!-- Delete -->
-                                                        <MazBtn v-if="isAdmin" size="large" color="danger" @click="() => supprimerUtilisateur(user)" :disabled="loadingDelete"
-                                                            class="h-9 w-8 text-white bg-gradient-to-r from-danger-500 via-danger-600 
-                                                            to-danger-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none 
-                                                            focus:ring-danger-300 dark:focus:ring-danger-800 shadow-lg shadow-danger-500/50 
-                                                            dark:shadow-lg dark:shadow-danger-800/80 font-medium rounded-lg text-sm px-5 
-                                                            py-2.5 text-center me-2 mb-2">
-                                                            🗑
-                                                        </MazBtn>
+                                                        <BoutonSupprimer v-if="isAdmin" :disabled="loadingDelete" @click="() => supprimerUtilisateur(user)" />
                                                     </td>
                                                 </tr>
 

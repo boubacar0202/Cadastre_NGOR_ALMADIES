@@ -1,12 +1,13 @@
 <script setup>
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
+import BoutonModifier from "@/Components/BoutonModifier.vue";
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import BaseInput from '@/Components/BaseInput.vue';
 import BaseSelect from '@/Components/BaseSelect.vue';
 import { ref, computed, watch, onMounted } from 'vue';
-import { Head, router, Link } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import { toast } from "@/Components/AppToast";
 import DeleteModal from "@/Components/DeleteModal.vue";
-import MazBtn from "maz-ui/components/MazBtn";
 import { debounce } from 'lodash'; 
 import { Inertia } from '@inertiajs/inertia';
 
@@ -172,8 +173,7 @@ const formatDate = (dateString) => {
         return date.toLocaleDateString('fr-FR', {
             day: '2-digit',
             month: '2-digit',
-            year: 'numeric',
-        });
+            year: 'numeric' });
     } catch {
         return '-';
     }
@@ -436,7 +436,7 @@ function telephoneRepresentant(titulaire) {
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ terrain.references_cadastrales?.rd_immatriculation_terrain || '' }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ terrain.references_cadastrales?.slt_dependant_domaine || '' }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ terrain.references_cadastrales?.ussu_bornage || '' }}</td>
-                                            <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ terrain.references_cadastrales?.txt_titre_mere || '' }}</td>
+                                            <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ terrain.txt_titre_mere || '' }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ terrain.references_cadastrales?.slt_lf || '' }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ terrain.references_cadastrales?.txt_num_requisition || '' }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ terrain.references_cadastrales?.txt_surface_bornage || '' }}</td>
@@ -471,33 +471,10 @@ function telephoneRepresentant(titulaire) {
                                             <td class="sticky right-0 z-8 px-2 py-1 border bg-white whitespace-nowrap">
                                                 <div class="flex justify-center gap-2">
                                                     <!-- Edit -->  
-                                                    <Link :href="`/secretariat/edit/${terrain.id}`">
-                                                        <MazBtn 
-                                                            size="large"  
-                                                            class="h-6 w-6 text-white bg-gradient-to-r from-green-500 via-green-600 
-                                                            to-green-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none 
-                                                            focus:ring-green-300 dark:focus:ring-green-800 shadow-lg shadow-green-500/50 
-                                                            dark:shadow-lg dark:shadow-green-800/80 font-medium rounded-lg text-xs px-5 
-                                                            py-2.5 text-center me-2 mb-2"
-                                                        >
-                                                            ✏️
-                                                        </MazBtn>
-                                                    </Link> 
+                                                    <BoutonModifier :href="`/secretariat/edit/${terrain.id}`" /> 
 
                                                     <!-- Delete -->
-                                                    <MazBtn 
-                                                        size="large" 
-                                                        color="danger" 
-                                                        @click="supprimerTerrain(terrain)" 
-                                                        :disabled="loadingDelete"
-                                                        class="h-6 w-6 text-white bg-gradient-to-r from-red-500 via-red-600 
-                                                        to-red-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none 
-                                                        focus:ring-red-300 dark:focus:ring-red-800 shadow-lg shadow-red-500/50 
-                                                        dark:shadow-lg dark:shadow-red-800/80 font-medium rounded-lg text-xs px-5 
-                                                        py-2.5 text-center me-2 mb-2"
-                                                    >
-                                                        🗑 
-                                                    </MazBtn>
+                                                    <BoutonSupprimer :disabled="loadingDelete" @click="supprimerTerrain(terrain)" />
                                                 </div>
                                             </td>
                                         </tr>

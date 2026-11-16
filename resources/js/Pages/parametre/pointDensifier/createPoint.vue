@@ -1,6 +1,8 @@
 <script setup>
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
+import BoutonModifier from "@/Components/BoutonModifier.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head, useForm, Link } from "@inertiajs/vue3";
+import { Head, useForm } from "@inertiajs/vue3";
 import MazBtn from "maz-ui/components/MazBtn";
 import DeleteModal from "@/Components/DeleteModal.vue";
 import { ref, computed, watch, watchEffect, onMounted } from "vue";
@@ -81,8 +83,7 @@ const form = useForm({
     txt_estPoint: "",
     txt_nordPoint: "",
     txt_hauteurPoint: "",
-    fichierPDFPoint: null,
-});
+    fichierPDFPoint: null });
 
 // 🔍 LOG pour déboguer
 console.log('📊 point_densifiers reçus :', props.point_densifiers);
@@ -467,23 +468,8 @@ onMounted(() => {
                                                 <span v-else class="text-primary-txt/60 italic">Aucun</span>
                                             </td> 
                                             <td class="px-2 py-1 border border-primary-only whitespace-nowrap">
-                                                <Link :href="`/parametre/pointDensifier/edit/${point.id}`">
-                                                    <MazBtn
-                                                        class="h-6 w-6 text-white bg-gradient-to-r from-green-400 via-green-500
-                                                            to-green-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none
-                                                            focus:ring-green-300 font-medium rounded-lg text-xs px-3 py-1 me-1"
-                                                    >
-                                                        ✏️
-                                                    </MazBtn>
-                                                </Link>
-                                                <MazBtn
-                                                    @click="() => supprimerPoint(point)"
-                                                    class="h-6 w-6 text-white bg-gradient-to-r from-red-500 via-red-600
-                                                        to-red-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none
-                                                        focus:ring-red-300 font-medium rounded-lg text-xs px-3 py-1"
-                                                >
-                                                    🗑️
-                                                </MazBtn>
+                                                <BoutonModifier :href="`/parametre/pointDensifier/edit/${point.id}`" />
+                                                <BoutonSupprimer @click="() => supprimerPoint(point)" />
                                             </td>
                                         </tr>
                                     </tbody>

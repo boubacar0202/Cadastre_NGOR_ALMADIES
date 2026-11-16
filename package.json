@@ -1,4 +1,5 @@
 {
+    "name": "Cadastre_Ngor_Almadies",
     "private": true,
     "type": "module",
     "scripts": {
@@ -28,6 +29,7 @@
         "@turf/turf": "^7.3.5",
         "chart.js": "^4.5.1",
         "flowbite": "^2.5.2",
+        "jspdf": "^4.2.1",
         "laravel-echo": "^2.1.7",
         "leaflet": "^1.9.4",
         "leaflet-control-geocoder": "^4.0.0",

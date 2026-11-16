@@ -1,4 +1,5 @@
 <script setup>
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue"; 
 import BaseInput from "@/Components/BaseInput.vue"
 import BaseSelect from "@/Components/BaseSelect.vue"
@@ -30,16 +31,14 @@ const props = defineProps({
                     backgroundColor: 'rgba(54, 162, 235, 0.7)',
                     borderColor: 'rgba(54, 162, 235, 1)',
                     borderWidth: 2,
-                    borderRadius: 4,
-                },
+                    borderRadius: 4 },
                 {
                     label: 'Délimitation',
                     data: [4, 7, 3, 5, 2, 4],
                     backgroundColor: 'rgba(255, 99, 132, 0.7)',
                     borderColor: 'rgba(255, 99, 132, 1)',
                     borderWidth: 2,
-                    borderRadius: 4,
-                }
+                    borderRadius: 4 }
             ]
         })
     },
@@ -240,12 +239,10 @@ async function afficherInformations(row) {
             enregistrements: row.enregistrements || 0,
             modifications: row.modifications || 0,
             suppressions: row.suppressions || 0,
-            recherches: row.recherches || 0,
-        },
+            recherches: row.recherches || 0 },
         traitements: [],
         total: 0,
-        tronque: false,
-    };
+        tronque: false };
     detailOuvert.value = true;
     detailChargement.value = true;
     try {
@@ -253,9 +250,7 @@ async function afficherInformations(row) {
             params: {
                 user_id: row.user_id,
                 annee: annee.value,
-                trimestre: trimestre.value,
-            },
-        });
+                trimestre: trimestre.value } });
         detail.value = data;
     } catch (error) {
         console.error('Erreur détail traitements:', error);
@@ -293,8 +288,7 @@ function retirerTraitementLocal(item) {
         enregistrement: 'enregistrements',
         modification: 'modifications',
         suppression: 'suppressions',
-        recherche: 'recherches',
-    }[item.action];
+        recherche: 'recherches' }[item.action];
     if (cle && detail.value.totaux) {
         detail.value.totaux[cle] = Math.max(0, (detail.value.totaux[cle] || 0) - 1);
     }
@@ -318,8 +312,7 @@ async function confirmerSuppressionTraitement({ adminCode } = {}) {
     loadingDelete.value = true;
     try {
         const { data } = await axios.delete(`/api/evaluation-utilisateur/${item.id}`, {
-            data: { code: String(adminCode).trim() },
-        });
+            data: { code: String(adminCode).trim() } });
         if (!data?.success) {
             toast.error(data?.message || 'Impossible de supprimer ce traitement.');
             return;
@@ -497,8 +490,7 @@ async function updateChartData() {
     isRefreshing.value = true;
     try {
         const response = await axios.get('/api/chart-data', {
-            params: { annee: annee.value, trimestre: trimestre.value },
-        });
+            params: { annee: annee.value, trimestre: trimestre.value } });
         const data = response.data;
         chartData.value.pie = data.pie || chartData.value.pie;
         chartData.value.bar = data.bar || chartData.value.bar;
@@ -524,8 +516,7 @@ async function loadEvaluation() {
     isLoadingEvaluation.value = true;
     try {
         const { data } = await axios.get('/api/chart-data', {
-            params: { annee: annee.value, trimestre: trimestre.value },
-        });
+            params: { annee: annee.value, trimestre: trimestre.value } });
         evaluationLignes.value = data.evaluation?.lignes || [];
     } catch (error) {
         console.error('Erreur évaluation:', error);
@@ -601,7 +592,7 @@ watchEffect((onInvalidate) => {
         <div class="eval-page">
             <header class="eval-header">
                 <div>
-                    <p class="eval-kicker">Cadastre de Kédougou</p>
+                    <p class="eval-kicker">Cadastre de Ngor Almadies</p>
                     <h1>Évaluation statistique</h1>
                 </div>
                 <MazBtn @click="updateChartData" color="primary" size="sm" :disabled="isRefreshing">
@@ -949,15 +940,7 @@ watchEffect((onInvalidate) => {
                                         <div class="journal-ref">{{ referenceAffichee(item.reference) }}</div>
                                     </td>
                                     <td>
-                                        <MazBtn
-                                            size="sm"
-                                            color="danger"
-                                            @click="supprimerTraitement(item)"
-                                            :disabled="loadingDelete && traitementASupprimer?.id === item.id"
-                                            class="h-6 w-6 text-white bg-gradient-to-r from-danger-500 via-danger-600 to-danger-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-danger-300 font-medium rounded-lg text-sm px-5 py-2.5"
-                                            >
-                                            🗑
-                                        </MazBtn>
+                                        <BoutonSupprimer :disabled="loadingDelete && traitementASupprimer?.id === item.id" @click="supprimerTraitement(item)" />
                                     </td>
                                 </tr>
                             </tbody>

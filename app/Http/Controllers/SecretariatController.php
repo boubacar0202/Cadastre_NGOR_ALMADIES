@@ -17,6 +17,7 @@ use App\Models\ReferenceCadastrale;
 use App\Models\ReferenceUsage;
 use App\Models\Terrain;
 use App\Models\Titulaire;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia; 
 use Illuminate\Support\Facades\Storage;
@@ -25,6 +26,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use App\Models\Mutation;
+use App\Services\AttributionDossierService;
 use Illuminate\Support\Facades\Log;
 
 class SecretariatController extends Controller
@@ -45,10 +47,30 @@ class SecretariatController extends Controller
             "regions" => $regions,
             "departements" => [], 
             'communes' => $communes,
-  
+            'agents' => $this->agentsTraiteurs(true),
         ]);
     }
  
+    private function agentsTraiteurs(bool $avecIdentifiant = false): array
+    {
+        return User::query()
+            ->when($avecIdentifiant, fn ($query) => $query->where('is_validated', true))
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(function (User $user) use ($avecIdentifiant) {
+                $nom = trim((string) $user->name);
+
+                return [
+                    'value' => $avecIdentifiant ? $user->id : $nom,
+                    'label' => $nom,
+                ];
+            })
+            ->filter(fn (array $agent) => trim((string) $agent['label']) !== '')
+            ->unique('value')
+            ->values()
+            ->all();
+    }
+
     // edit terrain
     public function edit($id)
     {
@@ -76,6 +98,7 @@ class SecretariatController extends Controller
             'communes' => Commune::select('id', 'slt_commune', 'txt_codeCommune')->get(), 
             'lotissements' => Lotissement::select('id', 'txt_denomination')->get(),
             'baremes' => BaremeEvaluation::pourCalcul(),
+            'agents' => $this->agentsTraiteurs(),
         ]);
     }
    
@@ -199,7 +222,7 @@ class SecretariatController extends Controller
     }
 
     // store
-    public function store(Request $request)
+    public function store(Request $request, AttributionDossierService $attributions)
     {
         // 🔥 Nettoyage NICAD
         $nicadNettoye = preg_replace('/\s+/', '', $request->txt_nicad ?? '');
@@ -242,6 +265,7 @@ class SecretariatController extends Controller
             'txt_etat_cession' => 'nullable|string',
             'txt_cession_definitive' => 'nullable|string',
             'dt_date_creation' => 'required|date',
+            'txt_agentTraiteur' => 'required|integer|exists:users,id',
 
             'rd_immatriculation_terrain' => 'required|string',
             'slt_dependant_domaine' => 'nullable|string',
@@ -320,6 +344,8 @@ class SecretariatController extends Controller
                 'txt_num_dossier.unique' => 'Le numéro de dossier est deja pris.',
                 'slt_titulaire.required' => 'Le champ "Titulaire" est obligatoire.',
                 'rd_immatriculation_terrain.required' => 'Le champ "Immatriculation terrain" est obligatoire.',
+                'txt_agentTraiteur.required' => 'Le champ "Agent Traiteur" est obligatoire.',
+                'txt_agentTraiteur.exists' => 'L\'agent sélectionné est introuvable.',
             ]);
 
         // 📁 fichier PDF
@@ -372,7 +398,18 @@ class SecretariatController extends Controller
             $terrainAReutiliser = null;
         }
 
-        return DB::transaction(function () use ($validated) {
+        $agent = User::query()
+            ->where('is_validated', true)
+            ->where('name', '!=', '')
+            ->find($validated['txt_agentTraiteur']);
+
+        if (! $agent) {
+            throw ValidationException::withMessages([
+                'txt_agentTraiteur' => 'Cet utilisateur ne peut pas recevoir de dossier.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($validated, $agent, $request, $attributions) {
 
             // 🔢 numéro ordre optimisé
             $numeroDordre = (Dossier::max('txt_num_dordre') ?? 0) + 1;
@@ -385,7 +422,10 @@ class SecretariatController extends Controller
                 'txt_etat_cession' => $validated['txt_etat_cession'] ?? null,
                 'txt_cession_definitive' => $validated['txt_cession_definitive'] ?? null,
                 'dt_date_creation' => $validated['dt_date_creation'],
+                'txt_agentTraiteur' => $agent->name,
             ]);
+
+            $attributions->attribuer($dossier, $agent, $request->user());
 
             // 📌 REFERENCE CADASTRALE
             $reference = ReferenceCadastrale::create([
@@ -470,6 +510,7 @@ class SecretariatController extends Controller
                 'nbr_surface' => $terrain->nbr_surface,
                 'txt_nicad' => $terrain->txt_nicad,
                 'txt_num_dossier' => $dossier->txt_num_dossier,
+                'success' => 'Dossier '.$dossier->txt_num_dossier.' enregistré et attribué à '.$agent->name.'.',
             ]);
         });
     }
@@ -602,6 +643,7 @@ class SecretariatController extends Controller
                 'txt_etat_cession',
                 'txt_cession_definitive',
                 'dt_date_creation',
+                'txt_agentTraiteur',
             ]));
         }
 

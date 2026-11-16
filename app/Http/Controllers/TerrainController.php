@@ -117,7 +117,7 @@ class TerrainController extends Controller
             $court = ltrim($section, '0');
             return [$section, $court === '' ? '0' : $court];
         })->unique()->values();
-        $terrains = Terrain::with(['dossier', 'commune', 'titulaire'])
+        $terrains = Terrain::with(['dossier', 'commune', 'titulaire', 'region', 'departement', 'arrondissement', 'references_cadastrales'])
             ->where(function ($requete) use ($variantes) {
                 $requete->whereIn('txt_num_section', $variantes)
                     ->orWhereNotNull('txt_nicad');
@@ -206,6 +206,12 @@ class TerrainController extends Controller
                     'txt_num_lotissement' => $terrain->txt_num_lotissement,
                     'nbr_surface' => $terrain->nbr_surface,
                     'txt_num_titre' => $terrain->txt_num_titre,
+                    'txt_titre_mere' => $terrain->txt_titre_mere,
+                    'region' => $terrain->region?->slt_region,
+                    'departement' => $terrain->departement?->slt_departement,
+                    'arrondissement' => $terrain->arrondissement?->slt_arrondissement,
+                    'livre_foncier' => $terrain->references_cadastrales?->slt_lf,
+                    'requisition' => $terrain->references_cadastrales?->txt_num_requisition,
                     'commune' => $terrain->commune?->slt_commune,
                     'titulaire' => $nomTitulaire,
                 ] : null,

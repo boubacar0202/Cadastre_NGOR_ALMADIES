@@ -1,8 +1,10 @@
 <script setup>
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
+import BoutonModifier from "@/Components/BoutonModifier.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue"; 
-import { Link, Head, useForm, usePage } from '@inertiajs/vue3'; 
+import { Head, useForm, usePage } from '@inertiajs/vue3'; 
 import MazBtn from "maz-ui/components/MazBtn"; 
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import axios from "axios";
 import { toast } from "@/Components/AppToast";  
 import DefaultLayout from "@/Layouts/DefaultLayout.vue";
@@ -34,6 +36,9 @@ const showPassword = ref(false)
 const showPasswordConfirmation = ref(false)
 const showDeleteUtilisateur = ref(false)
 const selectedUtilisateur = ref(null)
+const showValidation = ref(false)
+const compteAValider = ref(null)
+const validationDialog = ref(null)
 
 const togglePassword = () => {
   showPassword.value = !showPassword.value
@@ -48,8 +53,7 @@ const form = useForm({
     email: "",
     password: "",
     password_confirmation: "",
-    role: "",
-});
+    role: "" });
 
 const roleOptions = [
     { label: "Administrateur", value: "admin" },
@@ -90,8 +94,7 @@ const submitForm = () => {
         },
         onError: () => {
             toast.error("Veuillez corriger les champs du formulaire.");
-        },
-    });
+        } });
 }; 
 
 
@@ -108,6 +111,20 @@ const formatDate = (value) => {
     return date.toLocaleDateString("fr-FR");
 };
 
+const demanderValidation = async (user) => {
+    if (!user?.id || validatingId.value) return;
+    compteAValider.value = user;
+    showValidation.value = true;
+    await nextTick();
+    validationDialog.value?.focus();
+};
+
+const fermerValidation = () => {
+    if (validatingId.value) return;
+    showValidation.value = false;
+    compteAValider.value = null;
+};
+
 const validerCompte = async (user) => {
     if (!user?.id || validatingId.value) return;
 
@@ -116,6 +133,8 @@ const validerCompte = async (user) => {
         const { data } = await axios.post(route("parametre.admin.validate", user.id));
 
         if (data.success) {
+            showValidation.value = false;
+            compteAValider.value = null;
             toast.success(data.message);
             Inertia.reload({ preserveState: false });
         } else {
@@ -172,11 +191,11 @@ const confirmerSuppressionUtilisateur = async ({ adminCode } = {}) => {
 </script>
 
 <template>
-    <Head title="Administrateurs" />
+    <Head title="Comptes" />
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-xl font-semibold leading-tight text-primary-txt">Liste des administrateurs</h2>
+            <h2 class="text-xl font-semibold leading-tight text-primary-txt">Comptes</h2>
         </template>
 
         <div class="py-12">
@@ -195,7 +214,7 @@ const confirmerSuppressionUtilisateur = async ({ adminCode } = {}) => {
 
                         <!-- End Delete Modal -->
                         <div class="p-4 border-b bg-primary flex items-center justify-between rounded-t-xl gap-2"> 
-                            <h2 class="text-xl font-semibold leading-tight text-white">Liste des administrateurs</h2>
+                            <h2 class="text-xl font-semibold leading-tight text-white">Comptes</h2>
                            
                             <div v-if="isAdmin" class="flex items-center justify-end">
                                 <button
@@ -294,15 +313,18 @@ const confirmerSuppressionUtilisateur = async ({ adminCode } = {}) => {
                                                 </template>
                                             </BaseInput> 
 
-                                            <BaseSelect 
-                                                label="Rôle"
-                                                name="role"
-                                                required
-                                                placeholder="Choisir un rôle"
-                                                :options="roleOptions"
-                                                v-model="form.role"
-                                                :custom-error="form.errors.role"
-                                            />
+                                            <div class="md:col-span-2">
+                                                <BaseSelect 
+                                                    label="Rôle"
+                                                    name="role"
+                                                    required
+                                                    placeholder="Choisir un rôle"
+                                                    :options="roleOptions"
+                                                    v-model="form.role"
+                                                    :custom-error="form.errors.role"
+                                                />
+                                                <p class="mt-1.5 text-sm text-primary-txt">Administrateur : paramètres et validation des comptes. Utilisateur : dossiers au guichet.</p>
+                                            </div>
                                         </div>
                                         <br>
 
@@ -330,7 +352,62 @@ const confirmerSuppressionUtilisateur = async ({ adminCode } = {}) => {
                                     </form>
                                 </div>
                             </div>
-                        </Transition> 
+                        </Transition>
+
+                        <div
+                            v-if="showValidation && compteAValider"
+                            ref="validationDialog"
+                            tabindex="-1"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="valider-compte-titre"
+                            class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/50 outline-none"
+                            @click.self="fermerValidation"
+                            @keydown.esc="fermerValidation"
+                        >
+                            <div class="bg-white rounded-xl shadow-md w-full max-w-md">
+                                <div class="p-4 border-b bg-primary rounded-t-xl">
+                                    <h3 id="valider-compte-titre" class="text-xl font-semibold leading-tight text-white">Valider ce compte</h3>
+                                </div>
+                                <div class="p-6 space-y-3 text-primary-txt">
+                                    <p>Ce compte pourra se connecter.</p>
+                                    <dl class="space-y-2 text-sm">
+                                        <div>
+                                            <dt class="font-semibold">Nom</dt>
+                                            <dd class="break-words">{{ compteAValider.name || "—" }}</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="font-semibold">E-mail</dt>
+                                            <dd class="break-words">{{ compteAValider.email || "—" }}</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="font-semibold">Rôle</dt>
+                                            <dd>{{ libelleRole(compteAValider.role) }}</dd>
+                                        </div>
+                                    </dl>
+                                </div>
+                                <div class="flex justify-center gap-3 pb-6">
+                                    <button
+                                        type="button"
+                                        class="px-3 py-1.5 rounded-lg border border-gray-300 text-primary-txt font-medium"
+                                        :disabled="validatingId === compteAValider.id"
+                                        @click="fermerValidation"
+                                    >
+                                        Annuler
+                                    </button>
+                                    <MazBtn
+                                        no-shadow
+                                        no-hover-effect
+                                        size="small"
+                                        :disabled="validatingId === compteAValider.id"
+                                        @click="validerCompte(compteAValider)"
+                                        class="h-8 text-white bg-gradient-to-r from-green-500 via-green-600 to-green-700 font-medium rounded-lg text-sm px-3 py-2"
+                                    >
+                                        {{ validatingId === compteAValider.id ? "Validation…" : "Valider" }}
+                                    </MazBtn>
+                                </div>
+                            </div>
+                        </div>
  
                         <!-- Tableau des Utilisateurs -->
                         <div class="p-6">  
@@ -359,35 +436,19 @@ const confirmerSuppressionUtilisateur = async ({ adminCode } = {}) => {
                                                     <td class="sticky left-0 z-0 border bg-white px-6 py-4">{{ index + 1 }}</td> 
                                                     <td class="px-2 py-1 border whitespace-nowrap">{{ user.name || '-' }}</td>
                                                     <td class="px-2 py-1 border whitespace-nowrap">{{ user.email  || '-' }}</td>  
-                                                    <td class="px-2 py-1 border whitespace-nowrap bg-primary-only">{{ user.role || '-' }}</td>
+                                                    <td class="px-2 py-1 border whitespace-nowrap bg-primary-only">{{ libelleRole(user.role) }}</td>
                                                     <td class="px-2 py-1 border flex justify-center gap-2">
                                                         <!-- Edit -->  
-                                                        <Link :href="`/parametre/adminEdit/${user.id}`">
-                                                            <MazBtn no-shadow no-hover-effect size="large" 
-                                                                class="h-9 w-8 text-white bg-gradient-to-r from-green-500 via-green-600 
-                                                                to-green-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none 
-                                                                focus:ring-green-300 dark:focus:ring-green-800 shadow-lg shadow-green-500/50 
-                                                                dark:shadow-lg dark:shadow-green-800/80 font-medium rounded-lg text-sm px-5 
-                                                                py-2.5 text-center me-2 mb-2">
-                                                                ✏️
-                                                            </MazBtn>
-                                                        </Link>
+                                                        <BoutonModifier :href="`/parametre/adminEdit/${user.id}`" />
                             
                                                         <!-- Delete -->
-                                                        <MazBtn v-if="isAdmin" size="large" color="danger" @click="() => supprimerUtilisateur(user)" :disabled="loadingDelete"
-                                                            class="h-9 w-8 text-white bg-gradient-to-r from-danger-500 via-danger-600 
-                                                            to-danger-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none 
-                                                            focus:ring-danger-300 dark:focus:ring-danger-800 shadow-lg shadow-danger-500/50 
-                                                            dark:shadow-lg dark:shadow-danger-800/80 font-medium rounded-lg text-sm px-5 
-                                                            py-2.5 text-center me-2 mb-2">
-                                                            🗑
-                                                        </MazBtn>
+                                                        <BoutonSupprimer v-if="isAdmin" :disabled="loadingDelete" @click="() => supprimerUtilisateur(user)" />
                                                     </td>
                                                 </tr>
 
                                                 <!-- si aucun Utilisateur -->
                                                 <tr v-if="!props.users || props.users.length === 0"> 
-                                                    <td class="px-6 py-4 text-center text-primary-txt/60 italic" colspan="9">Aucun administrateur trouvé.</td>
+                                                    <td class="px-6 py-4 text-center text-primary-txt/60 italic" colspan="5">Aucun compte.</td>
                                                 </tr> 
                                             </tbody>
                                         </table> 
@@ -438,14 +499,14 @@ const confirmerSuppressionUtilisateur = async ({ adminCode } = {}) => {
                                                                 no-hover-effect
                                                                 size="small"
                                                                 :disabled="validatingId === user.id"
-                                                                @click="() => validerCompte(user)"
+                                                                @click="() => demanderValidation(user)"
                                                                 class="h-8 text-white bg-gradient-to-r from-green-500 via-green-600
                                                                 to-green-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none
                                                                 focus:ring-green-300 dark:focus:ring-green-800 shadow-lg shadow-green-500/50
                                                                 dark:shadow-lg dark:shadow-green-800/80 font-medium rounded-lg text-sm px-3
                                                                 py-2 text-center"
                                                             >
-                                                                Valider
+                                                                {{ validatingId === user.id ? "Validation…" : "Valider" }}
                                                             </MazBtn>
 
                                                             <MazBtn

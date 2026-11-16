@@ -18,56 +18,49 @@ const emit = defineEmits(["update:show", "confirm"]);
 const deleteCode = ref("");
 const adminCode = ref("");
 const showAdminPassword = ref(false);
-const showDeletePassword = ref(false);
+const adminError = ref("");
+const deleteError = ref("");
 
-// Réinitialiser les codes à l'ouverture du modal
-watch(() => props.show, (newVal) => {
-    if (newVal) {
-        deleteCode.value = "";
-        adminCode.value = "";
-        showAdminPassword.value = false;
-        showDeletePassword.value = false;
-    }
-});
-
-// Fermer le modal
-const closeModal = () => {
-    emit("update:show", false);
+const resetFields = () => {
     deleteCode.value = "";
     adminCode.value = "";
     showAdminPassword.value = false;
-    showDeletePassword.value = false;
+    adminError.value = "";
+    deleteError.value = "";
 };
 
-// Confirmer la suppression
+watch(() => props.show, (newVal) => {
+    if (newVal) resetFields();
+});
+
+const closeModal = () => {
+    emit("update:show", false);
+    resetFields();
+};
+
 const confirmer = () => {
-    // Vérification du code de confirmation
-    if (deleteCode.value.trim().toUpperCase() !== 'SUPPRIMER') {
-        alert('Veuillez taper exactement "SUPPRIMER" pour confirmer');
-        return;
-    }
+    adminError.value = "";
+    deleteError.value = "";
 
-    // Vérification du code admin
-    if (!adminCode.value || adminCode.value.trim() === '') {
-        alert('Veuillez entrer le code administrateur');
-        return;
-    }
+    const codeOk = Boolean(adminCode.value && adminCode.value.trim() !== "");
+    const motOk = deleteCode.value.trim().toUpperCase() === "SUPPRIMER";
 
-    // Envoyer les deux codes
+    if (!codeOk) {
+        adminError.value = "Entrez le code administrateur.";
+    }
+    if (!motOk) {
+        deleteError.value = "Tapez SUPPRIMER pour confirmer.";
+    }
+    if (!codeOk || !motOk) return;
+
     emit("confirm", {
         deleteCode: deleteCode.value,
         adminCode: adminCode.value
     });
 };
 
-// Basculer la visibilité du mot de passe admin
 const toggleAdminPassword = () => {
     showAdminPassword.value = !showAdminPassword.value;
-};
-
-// Basculer la visibilité du mot de passe de suppression
-const toggleDeletePassword = () => {
-    showDeletePassword.value = !showDeletePassword.value;
 };
 </script>
 
@@ -91,6 +84,8 @@ const toggleDeletePassword = () => {
                 autocomplete="off"
                 placeholder="Code administrateur"
                 wrapper-class="mb-2 w-full"
+                :error="adminError"
+                @input="adminError = ''"
             >
                 <template #append>
                     <button
@@ -106,23 +101,16 @@ const toggleDeletePassword = () => {
 
             <BaseInput
                 v-model="deleteCode"
-                label="Code de suppression"
-                :type="showDeletePassword ? 'text' : 'password'"
+                label="Confirmation"
+                type="text"
                 autocomplete="off"
-                placeholder="Entrez votre code de suppression"
-                wrapper-class="mb-4 w-full"
-            >
-                <template #append>
-                    <button
-                        type="button"
-                        @click="toggleDeletePassword"
-                        class="absolute inset-y-0 right-0 flex items-center pr-3 text-primary-txt/60 hover:text-primary"
-                    >
-                        <EyeIcon v-if="!showDeletePassword" class="h-5 w-5"/>
-                        <EyeSlashIcon v-else class="h-5 w-5" />
-                    </button>
-                </template>
-            </BaseInput>
+                spellcheck="false"
+                placeholder="SUPPRIMER"
+                wrapper-class="mb-1 w-full"
+                :error="deleteError"
+                @input="deleteError = ''"
+            />
+            <p class="mb-4 text-sm text-primary-txt">Tapez SUPPRIMER.</p>
 
             <div class="flex justify-center items-center gap-3">
                 <MazBtn
@@ -139,7 +127,7 @@ const toggleDeletePassword = () => {
                     :loading="loading"
                     class="h-10 w-36 bg-gradient-to-r from-red-500 via-red-600 to-red-700 text-white font-semibold rounded-2xl"
                     @click="confirmer"
-                    :disabled="loading || deleteCode.trim().toUpperCase() !== 'SUPPRIMER' || !adminCode || adminCode.trim() === ''"
+                    :disabled="loading"
                 >
                     Supprimer
                 </MazBtn>

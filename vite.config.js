@@ -37,9 +37,9 @@ export default defineConfig({
     ],
     server: {
         host: '0.0.0.0',
-        port: 5176,
+        port: 5177,
         hmr: {
-            host: 'cadastrekdg.sn',
+            host: 'cadastrenga.sn',
         },
         cors: true,
     },

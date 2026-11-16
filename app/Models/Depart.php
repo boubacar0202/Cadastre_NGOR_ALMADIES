@@ -27,7 +27,9 @@ class Depart extends Model
             'txt_prenomNomcd',
             'txt_numLotcd',
             'txt_superficiecd',
-            'txt_numTFcd',
+            'txt_numTitreFonciercd',
+            'txt_numTitreMerecd',
+            'txt_NICADcd',
             'txt_lotissementcd',
             'txt_objetcd',
             'txt_destinatairecd',
@@ -37,5 +39,9 @@ class Depart extends Model
             'txt_dureetraitementcd',
             'fichierPDFcd',
     ];
- 
+
+    public function attributions()
+    {
+        return $this->hasMany(AttributionDossier::class, 'depart_id');
+    }
 }

@@ -193,13 +193,13 @@ class ParametreController extends Controller
     {
         //
         $validatedData = $request->validate([
-            'txt_denomination' => 'string|required',
-            'txt_nombreParcelle' => 'string|required', 
-            'slt_departement' => 'string|required',
-            'slt_arrondissement' => 'string|required',
-            'slt_commune' => 'string|required',
-            'txt_surfaceLotissement' => 'string|required',
-            'txt_documentsAfferants' => 'file|nullable|mimes:pdf'
+            'txt_denomination' => 'required|string|max:255',
+            'txt_nombreParcelle' => 'required|string|max:255',
+            'slt_departement' => 'required|integer|exists:departements,id',
+            'slt_arrondissement' => 'required|integer|exists:arrondissements,id',
+            'slt_commune' => 'required|integer|exists:communes,id',
+            'txt_surfaceLotissement' => 'required|string|max:15',
+            'txt_documentsAfferants' => 'nullable|file|mimes:pdf',
         ],
             [
                 'txt_denomination.required' => 'Le champ "Denomination" est obligatoire.',
@@ -207,25 +207,21 @@ class ParametreController extends Controller
                 'slt_departement.required' => 'Le champ "Departement" est obligatoire.',
                 'slt_arrondissement.required' => 'Le champ "Arrondissement" est obligatoire.',
                 'slt_commune.required' => 'Le champ "Commune" est obligatoire.',
-                'txt_surfaceLotissement.required' => 'Le champ "Surface" est obligatoire.'
+                'txt_surfaceLotissement.required' => 'Le champ "Surface" est obligatoire.',
+                'txt_documentsAfferants.mimes' => 'Le document afférant doit être un fichier PDF.',
             ]);
 
-        // traitement fichier PDF
-        if ($request->hasFile('txt_documentsAfferants')) {
-            $validatedData['txt_documentsAfferants'] = $request->file('txt_documentsAfferants')->store('lotissement', 'public');
+        if (! $this->localisationLotissementCoherente($validatedData)) {
+            return back()->withErrors([
+                'slt_commune' => 'La commune ne correspond pas au département et à l’arrondissement choisis.',
+            ])->withInput();
         }
 
-        
-        Lotissement::create([
-            'txt_denomination' => $validatedData['txt_denomination'],
-            'txt_nombreParcelle' => $validatedData['txt_nombreParcelle'],
-            'txt_denomination' => $validatedData['txt_denomination'],
-            'slt_departement' => $validatedData['slt_departement'],
-            'slt_arrondissement' => $validatedData['slt_arrondissement'],
-            'slt_commune' => $validatedData['slt_commune'],
-            'txt_surfaceLotissement' => $validatedData['txt_surfaceLotissement'],
-            'txt_documentsAfferants' => $validatedData['txt_documentsAfferants']
-        ]);
+        $validatedData['txt_documentsAfferants'] = $request->hasFile('txt_documentsAfferants')
+            ? $request->file('txt_documentsAfferants')->store('lotissement', 'public')
+            : null;
+
+        Lotissement::create($validatedData);
         
          
         // return redirect()->back()->with('success', '✅ Données Lotissement enregistrée !');
@@ -250,14 +246,20 @@ class ParametreController extends Controller
         $lotissement = Lotissement::findOrFail($id);
 
         $validateData = $request->validate([
-            'txt_denomination' => 'string|required',
-            'txt_nombreParcelle' => 'string|required',
+            'txt_denomination' => 'required|string|max:255',
+            'txt_nombreParcelle' => 'required|string|max:255',
             'slt_departement' => 'required|integer|exists:departements,id',
             'slt_arrondissement' => 'required|integer|exists:arrondissements,id',
             'slt_commune' => 'required|integer|exists:communes,id',
-            'txt_surfaceLotissement' => 'string|required',
-            'txt_documentsAfferants' => 'file|nullable|mimes:pdf'
+            'txt_surfaceLotissement' => 'required|string|max:15',
+            'txt_documentsAfferants' => 'nullable|file|mimes:pdf',
         ]);
+
+        if (! $this->localisationLotissementCoherente($validateData)) {
+            return back()->withErrors([
+                'slt_commune' => 'La commune ne correspond pas au département et à l’arrondissement choisis.',
+            ])->withInput();
+        }
 
         // --- Gestion du fichier ---
         if ($request->hasFile('txt_documentsAfferants')) {
@@ -315,6 +317,19 @@ class ParametreController extends Controller
             'success' => true,
             'message' => "Lotissement \"$nom\" supprimé avec succès."
         ]);
+    }
+
+    private function localisationLotissementCoherente(array $data): bool
+    {
+        $arrondissementValide = Arrondissement::whereKey($data['slt_arrondissement'])
+            ->where('departement_id', $data['slt_departement'])
+            ->exists();
+
+        $communeValide = Commune::whereKey($data['slt_commune'])
+            ->where('arrondissement_id', $data['slt_arrondissement'])
+            ->exists();
+
+        return $arrondissementValide && $communeValide;
     }
 
     private function compteProtege(User $user): bool

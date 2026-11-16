@@ -18,13 +18,12 @@ class MatriceCadastraleController extends Controller
     {
         // Relations nécessaires pour l'affichage
         $relations = [
-            'region',
-            'departement',
-            'commune',
-            'dossier',
-            'titulaire',
-            'references_cadastrales',
-            'evaluations_batis',
+            'region:id,slt_region',
+            'departement:id,slt_departement',
+            'commune:id,slt_commune',
+            'dossier:id,txt_num_dossier',
+            'titulaire:id,slt_titulaire,txt_prenom,txt_nom,tel_telephone,eml_email',
+            'evaluations_batis:id,txt_nicad,currentCat,nbr_niveauPR',
         ];
 
         $query = Terrain::with($relations)

@@ -20,18 +20,14 @@ class DonneeController extends Controller
     {
         // Relations nécessaires pour l'affichage
         $relations = [
-            'region',
-            'departement',
-            'commune',
-            'arrondissement',
-            'dossier',
-            'titulaire',
-            'references_cadastrales',
-            'evaluations_terrains',
-            'evaluations_batis',
-            'evaluations_clotures',
-            'evaluations_amenagements',
-            'evaluations_cours_amenagees'
+            'region:id,slt_region',
+            'departement:id,slt_departement',
+            'commune:id,slt_commune',
+            'arrondissement:id,slt_arrondissement',
+            'dossier:id,txt_num_dossier,slt_service_rendu,txt_etat_cession,txt_cession_definitive,dt_date_creation',
+            'titulaire:id,slt_titulaire,txt_nationalite,slt_civilite,txt_prenom,txt_nom,txt_denominationPM,slt_piece,txt_numPiece,dt_date_delivrance,dt_date_naissance,txt_lieu_naissance,txt_adresse,tel_telephone,eml_email,fichierPDF,txt_representant,txt_perssonneRepresentantPM,txt_personneResponsablePA,txt_telephonePM,txt_telephonePA,tel_telRepresentant',
+            'references_cadastrales:id,rd_immatriculation_terrain,slt_dependant_domaine,ussu_bornage,slt_lf,txt_num_requisition,txt_surface_bornage,dt_date_bornage,txt_nom_geometre',
+            'evaluations_terrains:id,txt_nicad,dt_dateEvaluation',
         ];
 
         $query = Terrain::with($relations);
@@ -95,7 +91,7 @@ class DonneeController extends Controller
             });
         }
         // Pagination
-        $terrains = $query->orderBy('id', 'desc')->paginate(15);
+        $terrains = $query->orderBy('id', 'desc')->paginate(15)->withQueryString();
         
 
         // 🔥 TOTAL GÉNÉRAL DE LA BASE (sans filtres)

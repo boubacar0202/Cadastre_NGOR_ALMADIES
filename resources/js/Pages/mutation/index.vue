@@ -1,4 +1,6 @@
 <script setup>
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
+import BoutonModifier from "@/Components/BoutonModifier.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue"; 
 import { Head } from "@inertiajs/vue3"; 
 import MazBtn from "maz-ui/components/MazBtn";  
@@ -272,24 +274,9 @@ const confirmerSuppression = async ({ deleteCode, adminCode } = {}) => {
 
                       <!-- Actions -->
                       <td class="border px-2 py-1 flex justify-center gap-2">
-                        <Link :href="`/parametre/mutationEdit/${mutation.id}`">
-                          <MazBtn
-                            size="sm"
-                            class="h-8 w-6 text-white bg-gradient-to-r from-green-500 via-green-600 to-green-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5"
-                          >
-                            ✏️
-                          </MazBtn>
-                        </Link>
+                        <BoutonModifier :href="`/parametre/mutationEdit/${mutation.id}`" />
 
-                        <MazBtn
-                          size="sm"
-                          color="danger"
-                          @click="() => supprimerMutation(mutation)"
-                          :disabled="loadingDelete"
-                          class="h-8 w-6 text-white bg-gradient-to-r from-danger-500 via-danger-600 to-danger-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-danger-300 font-medium rounded-lg text-sm px-5 py-2.5"
-                        >
-                          🗑 
-                        </MazBtn>
+                        <BoutonSupprimer :disabled="loadingDelete" @click="() => supprimerMutation(mutation)" />
                       </td>
                     </tr>
 

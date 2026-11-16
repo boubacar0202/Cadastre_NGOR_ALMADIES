@@ -26,7 +26,9 @@ class Arrivee extends Model
         'txt_prenomNom',
         'txt_numLot',
         'txt_superficie',
-        'txt_numTF', 
+        'txt_NICAD',
+        'txt_numTitreMere',
+        'txt_numTitreFoncier',
         'txt_lotissement',
         'dt_date',
         'txt_heure',
@@ -38,5 +40,9 @@ class Arrivee extends Model
         'txt_observation', 
         'fichierPDF',
     ];
-       
+
+    public function attributions()
+    {
+        return $this->hasMany(AttributionDossier::class, 'arrivee_id');
+    }
 }

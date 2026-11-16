@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AttributionDossier;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -42,6 +43,21 @@ class HandleInertiaRequests extends Middleware
                 'warning' => $request->session()->get('warning'),
                 'info' => $request->session()->get('info')
             ],
+            'dossiers_en_cours' => function () use ($request) {
+                $user = $request->user();
+                if (! $user) {
+                    return 0;
+                }
+
+                $query = AttributionDossier::query()
+                    ->where('statut', AttributionDossier::STATUT_ATTRIBUE);
+
+                if ($user->role !== 'admin') {
+                    $query->where('user_id', $user->id);
+                }
+
+                return $query->count();
+            },
             'chatUsers' => function () use ($request) {
                 $user = $request->user();
                 if (!$user) {

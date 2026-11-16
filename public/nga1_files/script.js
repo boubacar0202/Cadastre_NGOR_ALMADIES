@@ -1,0 +1,2 @@
+jQuery(document).ready(function($){var getUrlParameter=function getUrlParameter(sParam){var sPageURL=window.location.search.substring(1),sURLVariables=sPageURL.split('&'),sParameterName,i;for(i=0;i<sURLVariables.length;i++){sParameterName=sURLVariables[i].split('=');if(sParameterName[0]===sParam){return sParameterName[1]===undefined?!0:decodeURIComponent(sParameterName[1])}}
+return!1};var status=getUrlParameter('status');var type=getUrlParameter('type');if(status=="neuf"&&type=="residence"){$(".g5ere__search-form .g5ere__sf-type").css("pointer-events","none")}})

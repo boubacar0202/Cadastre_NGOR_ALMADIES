@@ -1,10 +1,10 @@
 <script setup>
+import BoutonSupprimer from "@/Components/BoutonSupprimer.vue";
+import BoutonModifier from "@/Components/BoutonModifier.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import BaseInput from "@/Components/BaseInput.vue";
 import DefaultLayout from "@/Layouts/DefaultLayout.vue";
-import MazBtn from "maz-ui/components/MazBtn";
 import DeleteModal from "@/Components/DeleteModal.vue";
-import { Link } from '@inertiajs/vue3';
 import { Head } from "@inertiajs/vue3";
 import { ref, computed } from "vue";
 import axios from "axios";
@@ -65,11 +65,12 @@ const supprimerLotissement = (lotissement) => {
 // total enregistrements
 const totalEnregistrement = computed(() => props.lotissements.length)
  
-const confirmerSuppression = async (code) => {
-  
+const confirmerSuppression = async (payload) => {
+    const adminCode = typeof payload === "string" ? payload : payload?.adminCode;
+
     if (!selectedLotissement.value || loadingDelete.value) return;
 
-    if (!code?.trim()) {
+    if (!adminCode || String(adminCode).trim() === "") {
         toast.error("Veuillez entrer le code administrateur.")
         return
     }
@@ -79,7 +80,9 @@ const confirmerSuppression = async (code) => {
 
         const url = route('parametre.lotissement.destroy', selectedLotissement.value.id);
 
-        const { data } = await axios.delete(url, { data: { code } });
+        const { data } = await axios.delete(url, {
+            data: { code: String(adminCode).trim() }
+        });
 
         if (data.success) {
             toast.success(data.message)
@@ -117,7 +120,7 @@ const confirmerSuppression = async (code) => {
           <div class="bg-white shadow rounded-xl">
             <div class="flex items-center justify-between p-4 border-b rounded-t-xl bg-primary">
               <h1 class="flex items-start space-x-1 text-lg text-white font-semibold">
-                Liste des lotissements :  
+                Liste des lotissements :    
                 <span v-if="totalEnregistrement>0" class="text-white font-semibold">
                   {{ totalEnregistrement }}
                 </span>
@@ -162,7 +165,7 @@ const confirmerSuppression = async (code) => {
                           <th class="px-4 py-1 text-xs text-white text-center border bg-primary font-semibold">Superficie (ha)</th>
                           <th class="px-4 py-1 text-xs text-white text-center border bg-primary font-semibold">Nombre de Parcelles</th>
                           <th class="px-4 py-1 text-xs text-white text-center border bg-primary font-semibold">Documents Afferants</th>
-                          <th class="px-4 py-1 text-xs text-center bg-primary-only font-semibold">ACTIONS</th>
+                          <th class="px-4 py-1 text-xs text-primary-txt text-center border bg-primary-only font-semibold">Actions</th>
                         </tr>
                       </thead>
 
@@ -188,32 +191,11 @@ const confirmerSuppression = async (code) => {
                             <div v-else class="text-primary-txt/60 italic">Aucun PDF</div>
                           </td>
 
-                          <!-- Actions -->
-                          <td class="px-2 py-1 border flex justify-center gap-2">
-                            <!-- Edit -->  
-                            <Link :href="`/parametre/lotissement/edit/${lot.id}`">
-                              <MazBtn 
-                                  size="large"  
-                                  :loading="loading"
-                                  class="h-6 w-6 text-white bg-gradient-to-r from-green-500 via-green-600 
-                                    to-green-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none 
-                                    focus:ring-green-300 dark:focus:ring-green-800 shadow-lg shadow-green-500/50 
-                                    dark:shadow-lg dark:shadow-green-800/80 font-medium rounded-lg text-xs px-5 
-                                    py-2.5 text-center me-2 mb-2">
-                                  ✏️
-                              </MazBtn>
-                            </Link> 
-
- 
-                            <!-- Delete -->
-                            <MazBtn size="large" color="danger" @click="supprimerLotissement(lot)" :disabled="loadingDelete"
-                                class="h-6 w-6 text-white bg-gradient-to-r from-red-500 via-red-600 
-                                  to-red-700 hover:bg-gradient-to-br focus:ring-4 focus:outline-none 
-                                  focus:ring-red-300 dark:focus:ring-red-800 shadow-lg shadow-red-500/50 
-                                  dark:shadow-lg dark:shadow-red-800/80 font-medium rounded-lg text-xs px-5 
-                                  py-2.5 text-center me-2 mb-2">
-                              🗑 
-                            </MazBtn>
+                          <td class="border px-2 py-1 align-middle">
+                            <div class="flex items-center justify-center gap-2">
+                              <BoutonModifier :href="route('parametre.lotissement.edit', lot.id)" />
+                              <BoutonSupprimer :disabled="loadingDelete" @click="supprimerLotissement(lot)" />
+                            </div>
                           </td>
                         </tr>
 

@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('txt_etat_cession')->nullable();
             $table->string('txt_cession_definitive')->nullable();
             $table->date('dt_date_creation');
+            $table->string('txt_agentTraiteur')->nullable();
             $table->timestamps();
         });
     }

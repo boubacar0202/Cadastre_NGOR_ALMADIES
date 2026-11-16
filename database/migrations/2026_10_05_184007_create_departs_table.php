@@ -28,9 +28,11 @@ return new class extends Migration
             $table->string('txt_nombrepiececd');
             $table->string('txt_referencecd');
             $table->string('txt_prenomNomcd')->nullable();
-            $table->string('txt_numLotcd', 5)->nullable()->change();
+            $table->string('txt_numLotcd', 50)->nullable();
             $table->decimal('txt_superficiecd', 10, 2)->nullable();
-            $table->string('txt_numTFcd')->nullable();
+            $table->string('txt_numTitreMerecd', 20)->nullable();
+            $table->string('txt_numTitreFonciercd', 20)->nullable();
+            $table->string('txt_NICADcd', 25)->nullable();
             $table->string('txt_lotissementcd')->nullable();
             $table->string('txt_objetcd')->nullable();
             $table->string('txt_destinatairecd');

@@ -53,23 +53,44 @@ class DepartController extends Controller
  
     public function fetchReferencesArrivee(Request $request): JsonResponse
     {
-        $dejaRepondues = Depart::query()
-            ->whereNotNull('txt_referencecourierarriveecd')
-            ->where('txt_referencecourierarriveecd', '!=', '')
-            ->pluck('txt_referencecourierarriveecd');
+        $terme = trim((string) $request->input('q', ''));
 
         $arrivees = Arrivee::query()
+            ->select([
+                'txt_reference',
+                'txt_expediteur',
+                'txt_objet',
+                'txt_prenomNom',
+                'txt_lotissement',
+                'txt_superficie',
+                'txt_numLot',
+                'txt_nombrepiece',
+                'txt_typecourrier',
+                'txt_numdossier',
+                'txt_numTitreFoncier',
+                'txt_numTitreMere',
+                'txt_NICAD',
+                'txt_designation',
+            ])
             ->whereNotNull('txt_reference')
             ->where('txt_reference', '!=', '')
-            ->when($dejaRepondues->isNotEmpty(), function ($query) use ($dejaRepondues) {
-                $query->where(function ($q) use ($dejaRepondues) {
-                    $q->where('txt_typecourrier', 'BE à réponses Multiples')
-                        ->orWhereNotIn('txt_reference', $dejaRepondues);
-                });
+            ->where(function ($query) {
+                $query->where('txt_typecourrier', 'BE à réponses Multiples')
+                    ->orWhereNotExists(function ($sousRequete) {
+                        $sousRequete->selectRaw('1')
+                            ->from('departs')
+                            ->whereColumn('departs.txt_referencecourierarriveecd', 'arrivees.txt_reference')
+                            ->where('departs.txt_referencecourierarriveecd', '!=', '');
+                    });
+            })
+            ->when($terme !== '', function ($query) use ($terme) {
+                $query->where('txt_reference', 'like', '%'.addcslashes($terme, '%_\\').'%');
             })
             ->orderByDesc('dt_datearrivee')
+            ->limit(80)
             ->get()
             ->unique('txt_reference')
+            ->take(30)
             ->values();
 
         $map = function (string $field) use ($arrivees) {
@@ -84,14 +105,16 @@ class DepartController extends Controller
             'map_ref_to_objet' => $map('txt_objet'),
             'map_ref_to_reception' => $map('txt_reference'),
             'map_ref_to_interesse' => $map('txt_prenomNom'),
-            'map_ref_to_designation' => $map('txt_lotissement'),
+            'map_ref_to_designation' => $map('txt_designation'),
             'map_ref_to_surface' => $map('txt_superficie'),
             'map_ref_to_numLotissement' => $map('txt_numLot'),
             'map_ref_to_nombrePiece' => $map('txt_nombrepiece'),
             'map_ref_to_prenomNom' => $map('txt_prenomNom'),
             'map_ref_to_numLot' => $map('txt_numLot'),
             'map_ref_to_superficie' => $map('txt_superficie'),
-            'map_ref_to_numTF' => $map('txt_numTF'),
+            'map_ref_to_numTF' => $map('txt_numTitreFoncier'),
+            'map_ref_to_numTitreMere' => $map('txt_numTitreMere'),
+            'map_ref_to_nicad' => $map('txt_NICAD'),
             'map_ref_to_lotissement' => $map('txt_lotissement'),
             'map_ref_to_typeCourrier' => $map('txt_typecourrier'),
             'map_ref_to_numDossier' => $map('txt_numdossier'),
@@ -114,8 +137,35 @@ class DepartController extends Controller
     }
     
 
+    private function normaliserChampsNullable(Request $request): void
+    {
+        $vides = [];
+
+        foreach ([
+            'txt_superficiecd',
+            'txt_numLotcd',
+            'txt_numdossiercd',
+            'txt_avisReponsecd',
+            'txt_numTitreFonciercd',
+            'txt_numTitreMerecd',
+            'txt_NICADcd',
+            'txt_prenomNomcd',
+            'txt_lotissementcd',
+        ] as $champ) {
+            if ($request->input($champ) === '') {
+                $vides[$champ] = null;
+            }
+        }
+
+        if ($vides !== []) {
+            $request->merge($vides);
+        }
+    }
+
     public function store(Request $request)
     {
+        $this->normaliserChampsNullable($request);
+
         // ================= VALIDATION =================
         $validateData = $request->validate([
             'txt_numdordrecd' => [
@@ -136,7 +186,7 @@ class DepartController extends Controller
                 },
             ],
             'txt_numdossiercd'              => 'nullable|string|max:50',
-            'txt_avisReponsecd'             => 'nullable|string|max:15',
+            'txt_avisReponsecd'             => 'nullable|string|max:50',
             'txt_caracterecd'               => 'nullable|string|max:255',
             'dt_datecouriercd'              => 'required|date',
             'txt_typecourriercd'            => 'required|string|max:255',
@@ -148,8 +198,10 @@ class DepartController extends Controller
 
             'txt_prenomNomcd'               => 'nullable|string|max:255',
             'txt_numLotcd'                  => 'nullable|string|max:50',      // ✅ Limite cohérente avec la BDD
-            'txt_superficiecd'              => 'nullable|numeric|min:0|max:999999',      // ✅ Idem
-            'txt_numTFcd'                   => 'nullable|string|max:20',
+            'txt_superficiecd'              => 'nullable|numeric|min:0|max:999999',
+            'txt_numTitreFonciercd'         => 'nullable|string|max:255',
+            'txt_numTitreMerecd'            => 'nullable|string|max:20',
+            'txt_NICADcd'                   => 'nullable|string|max:25',
             'txt_lotissementcd'             => 'nullable|string|max:100',
 
             'txt_objetcd'                   => 'nullable|string|max:255',
@@ -163,7 +215,7 @@ class DepartController extends Controller
             // ================= MESSAGES PERSONNALISÉS =================
             'txt_numdordrecd.required'              => "Le numéro d'ordre est requis.",
             'txt_numdordrecd.max'                   => "Le numéro d'ordre ne doit pas dépasser 50 caractères.",
-            'txt_avisReponsecd.max'                 => "L'avis ne doit pas dépasser 15 caractères.",
+            'txt_avisReponsecd.max'                 => "L'avis ne doit pas dépasser 50 caractères.",
             'txt_numdossiercd.max'                  => "Le numéro de dossier ne doit pas dépasser 50 caractères.",
             'dt_datecouriercd.required'             => "La date du courrier est requise.",
             'dt_datecouriercd.date'                 => "La date du courrier doit être une date valide.",
@@ -204,7 +256,9 @@ class DepartController extends Controller
             'txt_prenomNomcd'               => $validateData['txt_prenomNomcd'] ?? null,
             'txt_numLotcd'                  => $validateData['txt_numLotcd'] ?? null,
             'txt_superficiecd'              => $validateData['txt_superficiecd'] ?? null,
-            'txt_numTFcd'                   => $validateData['txt_numTFcd'] ?? null,
+            'txt_numTitreFonciercd'         => $validateData['txt_numTitreFonciercd'] ?? null,
+            'txt_numTitreMerecd'            => $validateData['txt_numTitreMerecd'] ?? null,
+            'txt_NICADcd'                   => $validateData['txt_NICADcd'] ?? null,
             'txt_lotissementcd'             => $validateData['txt_lotissementcd'] ?? null,
             'txt_objetcd'                   => $validateData['txt_objetcd'] ?? null,
             'txt_destinatairecd'            => $validateData['txt_destinatairecd'],
@@ -247,7 +301,9 @@ class DepartController extends Controller
     public function update (Request $request, string $id)
     {
         //
-        $depart = Depart::findOrFail($id); 
+        $depart = Depart::findOrFail($id);
+
+        $this->normaliserChampsNullable($request);
   
         $validateData   = $request->validate([  
             // 'txt_numdordrecd' => 'required|unique:departs,txt_numdordrecd'.$id,  
@@ -257,7 +313,7 @@ class DepartController extends Controller
             ],
             'txt_caracterecd' => 'nullable|string|max:255', 
             'txt_numdossiercd' => 'nullable|string|max:255',
-            'txt_avisReponsecd' => 'nullable|string|max:15',
+            'txt_avisReponsecd' => 'nullable|string|max:50',
             'dt_datecouriercd' => 'required|date',
             'txt_typecourriercd' => 'required|string|max:255',
             'txt_categoriecd' => 'required|string|max:255',
@@ -267,8 +323,10 @@ class DepartController extends Controller
             'txt_referencecd' => 'nullable|string|max:255',
             'txt_prenomNomcd' => 'nullable|string|max:255',
             'txt_numLotcd' => 'nullable|string|max:255',
-            'txt_superficiecd' => 'nullable|string|max:255',
-            'txt_numTFcd' => 'nullable|string|max:255',
+            'txt_superficiecd' => 'nullable|numeric|min:0|max:999999',
+            'txt_numTitreFonciercd' => 'nullable|string|max:255',
+            'txt_numTitreMerecd' => 'nullable|string|max:20',
+            'txt_NICADcd' => 'nullable|string|max:25',
             'txt_lotissementcd' => 'nullable|string|max:255',
             'txt_objetcd' => 'required|string|max:255',
             'txt_destinatairecd' => 'required|string|max:255',
@@ -281,7 +339,7 @@ class DepartController extends Controller
             'txt_numdordrecd.required' => 'Le numéro d\'ordre est requis.',
             'txt_numdordrecd.unique' => 'Le numéro d\'ordre doit être unique.', 
             'dt_datecouriercd.required' => 'La date du courrier est requise.',
-            'txt_avisReponsecd.max' => 'L\'avis ne doit pas dépasser 15 caractères', 
+            'txt_avisReponsecd.max' => 'L\'avis ne doit pas dépasser 50 caractères.', 
             'dt_datecouriercd.date' => 'La date du courrier doit être une date valide.',
             'txt_typecourriercd.required' => 'Le type de courrier est requis.',
             'txt_categoriecd.required' => 'La catégorie du courrier est requise.',
