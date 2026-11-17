@@ -455,23 +455,32 @@ function libelleLot(valeur) {
     return Number.isFinite(nombre) ? String(nombre) : '';
 }
 
-function centreVisible(points, centre, rayon) {
-    const dansDisque = (point) => (point.x - centre.x) ** 2 + (point.y - centre.y) ** 2 <= rayon * rayon + 0.01;
-    const barycentre = (liste) => liste.reduce((somme, point) => ({
-        x: somme.x + point.x / liste.length,
-        y: somme.y + point.y / liste.length,
-    }), { x: 0, y: 0 });
-    const milieu = barycentre(points);
-    if (dansDisque(milieu) && contient(milieu, points)) return milieu;
-    const interieurs = points.filter(dansDisque);
-    if (!interieurs.length) return null;
-    const candidat = barycentre(interieurs);
-    if (dansDisque(candidat) && contient(candidat, points)) return candidat;
-    const rapproche = {
-        x: interieurs[0].x * 0.65 + milieu.x * 0.35,
-        y: interieurs[0].y * 0.65 + milieu.y * 0.35,
-    };
-    return dansDisque(rapproche) && contient(rapproche, points) ? rapproche : null;
+function centreGravite(points) {
+    let aire = 0;
+    let cx = 0;
+    let cy = 0;
+    for (let i = 0; i < points.length; i += 1) {
+        const courant = points[i];
+        const suivant = points[(i + 1) % points.length];
+        const croix = courant.x * suivant.y - suivant.x * courant.y;
+        aire += croix;
+        cx += (courant.x + suivant.x) * croix;
+        cy += (courant.y + suivant.y) * croix;
+    }
+    if (Math.abs(aire) < 1e-6) {
+        return points.reduce((somme, point) => ({
+            x: somme.x + point.x / points.length,
+            y: somme.y + point.y / points.length,
+        }), { x: 0, y: 0 });
+    }
+    return { x: cx / (3 * aire), y: cy / (3 * aire) };
+}
+
+function centreVisible(points, centre, rayon, dansCadre) {
+    const gravite = centreGravite(points);
+    const dansDisque = (gravite.x - centre.x) ** 2 + (gravite.y - centre.y) ** 2 <= rayon * rayon + 0.01;
+    if (contient(gravite, points) && dansDisque && dansCadre(gravite)) return gravite;
+    return null;
 }
 
 function nomRue(ecart) {
@@ -840,15 +849,15 @@ export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, secti
                 const suivant = page[(index + 1) % page.length];
                 ajouter({ type: 'line', x1: point[0], y1: point[1], x2: suivant[0], y2: suivant[1], width: 0.25 });
             });
-            const place = centreVisible(parcelle.points, centreEmprise, rayonMetres);
-            if (!place) return;
-            const [x, y] = pagePrincipale(place);
+            const gravite = centreGravite(parcelle.points);
+            if (!contient(gravite, parcelle.points) || !dansRectangle(pagePrincipale(gravite), principal, 1)) return;
+            const [x, y] = pagePrincipale(gravite);
             textePrincipal(x, y, parcelle.lot || 'TNI', 2.15, 'normal', 'middle');
         });
     }
     autour.forEach((parcelle) => {
         if (parcelle.interieur) return;
-        const place = centreVisible(parcelle.points, centreEmprise, rayonMetres);
+        const place = centreVisible(parcelle.points, centreEmprise, rayonMetres, (point) => dansRectangle(pagePrincipale(point), principal, 1));
         if (!place) return;
         const [x, y] = pagePrincipale(place);
         const lot = libelleLot(parcelle.lot);
