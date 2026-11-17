@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Departement;
 use App\Models\PointDensifier;
 use App\Models\Shapefile;
+use App\Models\User;
 use Inertia\Inertia;
 
 class PlanController extends Controller
@@ -19,6 +20,7 @@ class PlanController extends Controller
                 'departement', 'arrondissement', 'commune'
             ])->get(),
             'shapefiles' => Shapefile::latest()->get(),
+            'signataireExtrait' => User::chefDeBureau()?->name ?? '',
         ]);
     }
 
@@ -36,6 +38,7 @@ class PlanController extends Controller
             'arrondissements'  => [],
             'communes'         => [],
             'shapefiles'       => Shapefile::latest()->get(),
+            'signataireExtrait' => User::chefDeBureau()?->name ?? '',
         ]);
     }
 }

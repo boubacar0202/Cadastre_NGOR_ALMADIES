@@ -4,7 +4,7 @@ import BoutonModifier from "@/Components/BoutonModifier.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue"; 
 import { Head, useForm, usePage } from '@inertiajs/vue3'; 
 import MazBtn from "maz-ui/components/MazBtn"; 
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import axios from "axios";
 import { toast } from "@/Components/AppToast";  
 import DefaultLayout from "@/Layouts/DefaultLayout.vue";
@@ -53,12 +53,34 @@ const form = useForm({
     email: "",
     password: "",
     password_confirmation: "",
-    role: "" });
+    role: "",
+    fonction: "",
+});
 
 const roleOptions = [
     { label: "Administrateur", value: "admin" },
     { label: "Utilisateur", value: "user" },
 ];
+
+const fonctions = [
+    { label: "Chef de Bureau", value: "Chef de Bureau" },
+    { label: "Géomètre", value: "Géomètre" },
+    { label: "Agent", value: "Agent" },
+    { label: "Particulier", value: "Particulier" },
+    { label: "Secrétaire", value: "Secrétaire" },
+];
+
+const fonctionOptions = computed(() => (
+    form.role === "admin"
+        ? fonctions
+        : fonctions.filter((option) => option.value !== "Chef de Bureau")
+));
+
+watch(() => form.role, (role) => {
+    if (role !== "admin" && form.fonction === "Chef de Bureau") {
+        form.fonction = "";
+    }
+});
 
 const ouvrirModal = () => {
     form.reset();
@@ -325,6 +347,18 @@ const confirmerSuppressionUtilisateur = async ({ adminCode } = {}) => {
                                                 />
                                                 <p class="mt-1.5 text-sm text-primary-txt">Administrateur : paramètres et validation des comptes. Utilisateur : dossiers au guichet.</p>
                                             </div>
+                                            <div class="md:col-span-2">
+                                                <BaseSelect
+                                                    label="Fonction"
+                                                    name="fonction"
+                                                    required
+                                                    placeholder="Choisir une fonction"
+                                                    :options="fonctionOptions"
+                                                    v-model="form.fonction"
+                                                    :custom-error="form.errors.fonction"
+                                                />
+                                                <p class="mt-1.5 text-sm text-primary-txt">Chef de Bureau est réservé à un administrateur. Ce compte unique signe les extraits de plan.</p>
+                                            </div>
                                         </div>
                                         <br>
 
@@ -423,6 +457,7 @@ const confirmerSuppressionUtilisateur = async ({ adminCode } = {}) => {
                                                     <th class="px-2 py-2 border bg-primary-only font-bold">Prénom & Nom</th>
                                                     <th class="px-2 py-2 border bg-primary-only font-bold">Email</th> 
                                                     <th class="px-2 py-2 border bg-primary-only font-bold">Rôle</th>
+                                                    <th class="px-2 py-2 border bg-primary-only font-bold">Fonction</th>
                                                     <th class="px-2 py-2 border bg-primary-only font-bold">ACTIONS</th>
                                                 </tr>
                                             </thead>
@@ -437,6 +472,7 @@ const confirmerSuppressionUtilisateur = async ({ adminCode } = {}) => {
                                                     <td class="px-2 py-1 border whitespace-nowrap">{{ user.name || '-' }}</td>
                                                     <td class="px-2 py-1 border whitespace-nowrap">{{ user.email  || '-' }}</td>  
                                                     <td class="px-2 py-1 border whitespace-nowrap bg-primary-only">{{ libelleRole(user.role) }}</td>
+                                                    <td class="px-2 py-1 border whitespace-nowrap">{{ user.fonction || '-' }}</td>
                                                     <td class="px-2 py-1 border flex justify-center gap-2">
                                                         <!-- Edit -->  
                                                         <BoutonModifier :href="`/parametre/adminEdit/${user.id}`" />

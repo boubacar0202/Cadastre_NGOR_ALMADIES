@@ -16,7 +16,7 @@ import proj4 from 'proj4';
 import { toast } from "@/Components/AppToast";
 import * as turf from '@turf/turf';
 import ExtraitPlanApercu from '@/Components/ExtraitPlanApercu.vue';
-import { anneauPrincipal, blocageExtrait, commandesExtrait, echelleAdaptee, nomFichierExtrait, porteeSituation } from '@/utils/extraitPlan';
+import { anneauPrincipal, blocageExtrait, commandesCarte, commandesExtrait, nomFichierExtrait, porteeCarte, porteeSituation } from '@/utils/extraitPlan';
 import axios from 'axios';
 import { usePage } from '@inertiajs/vue3';
 
@@ -28,7 +28,8 @@ axios.defaults.headers.common['X-CSRF-TOKEN'] = page.props.csrf_token;
 // ============================================================
 const props = defineProps({
     point_densifiers: { type: Array, default: () => [] },
-    shapefiles: { type: Array, default: () => [] } });
+    shapefiles: { type: Array, default: () => [] },
+    signataireExtrait: { type: String, default: '' } });
 
 // ============================================================
 // 3. CONSTANTES
@@ -82,8 +83,16 @@ const erreurExtrait = ref('');
 const extraitEnCours = ref(false);
 const extraitOuvert = ref(null);
 const choixEchelleOuvert = ref(false);
+const planChoisi = ref('extrait');
 const echelleSituationChoisie = ref(2000);
 const echelleParcelleChoisie = ref(500);
+const echelleUniqueChoisie = ref(1000);
+const plansDisponibles = [
+    { id: 'extrait', label: 'Extrait de plan' },
+    { id: 'cic', label: 'Plan pour CIC' },
+    { id: 'situation', label: 'Plan de situation' },
+    { id: 'morcellement', label: 'Plan de morcellement' },
+];
 const bureauExtrait = { nom: 'Ngor Almadies', ville: 'Ngor Almadies' };
 const showInfo = ref(false);
 
@@ -1415,15 +1424,28 @@ async function limitesSectionAutour(polygone) {
     return lignes;
 }
 
-async function parcellesAutour(polygone, echelleSituation = 2000) {
+function lotDansParcelle(feature, pointsLot, parcelles) {
+    const direct = pointsLot.find((point) => pointDansPolygone(point, feature));
+    if (direct) return String(texteAttribut(direct) || '').trim();
+    let tampon = null;
+    try {
+        tampon = turf.buffer(feature, 1.2, { units: 'meters' });
+    } catch (e) {
+        tampon = null;
+    }
+    if (!tampon) return '';
+    const proche = pointsLot.find((point) => pointDansPolygone(point, tampon)
+        && !parcelles.some((autre) => autre !== feature && pointDansPolygone(point, autre)));
+    return String(texteAttribut(proche) || '').trim();
+}
+
+async function parcellesAutour(polygone, echelleSituation = 2000, porteeMetres = null) {
     const parcelles = await lireCouches('limite_parcelle');
-    const numeros = await lireCouches('numero_parcelle');
     const pointsLot = await lireCouches('numero_lot');
-    const sections = await lireCouches('limite_section');
-    const numerosSection = await lireCouches('numero_section');
+    const numeros = await lireCouches('numero_parcelle');
     let zone = null;
     try {
-        zone = turf.buffer(polygone, porteeSituation(echelleSituation), { units: 'meters' });
+        zone = turf.buffer(polygone, porteeMetres || porteeSituation(echelleSituation), { units: 'meters' });
     } catch (e) {
         zone = null;
     }
@@ -1461,55 +1483,36 @@ async function parcellesAutour(polygone, echelleSituation = 2000) {
         } catch (e) {
             touche = false;
         }
-        const pointLot = pointsLot.find((point) => pointDansPolygone(point, feature)) || null;
-        const lotPoint = texteAttribut(pointLot);
-        if (lotPoint) {
-            return { feature, section: '', parcelle: '', lotissement: '', touche, lotPoint };
+        let surface = 0;
+        let interieur = false;
+        try {
+            surface = Math.round(turf.area(feature));
+            interieur = turf.booleanPointInPolygon(turf.centroid(feature), polygone);
+        } catch (e) {
+            surface = 0;
+            interieur = false;
         }
-        const pointNumero = numeros.find((point) => pointDansPolygone(point, feature)) || null;
-        const sectionPoly = sectionContenant(feature, sections);
+        const pointNumero = numeros.find((point) => pointDansPolygone(point, feature));
         return {
             feature,
-            section: sectionPoly ? numeroDans(sectionPoly, numerosSection, 3) : '',
-            parcelle: chiffresCadastre(texteAttribut(pointNumero), 5),
-            lotissement: coucheAttribut(feature),
             touche,
-            lotPoint: '',
+            lotPoint: lotDansParcelle(feature, pointsLot, parcelles),
+            parcelle: chiffresCadastre(texteAttribut(pointNumero), 5),
+            surface,
+            interieur,
         };
     });
-    const consultables = demandes.filter((item) => !item.lotPoint && item.section && item.parcelle);
-    const lots = new Map();
-    if (consultables.length) {
-        const resultats = await consulterBase(consultables.map(({ section, parcelle, lotissement }) => ({
-            section,
-            parcelle,
-            lotissement })));
-        resultats.forEach((resultat) => {
-            lots.set(`${resultat.section}|${resultat.parcelle}`, {
-                lot: resultat?.terrain?.txt_num_lotissement || '',
-                titre: resultat?.terrain?.txt_num_titre || '' });
-        });
-    }
     return demandes.map((demande) => {
         return {
             ring: anneauPrincipal(demande.feature),
-            lot: demande.lotPoint || lots.get(`${demande.section}|${demande.parcelle}`)?.lot || '',
+            lot: demande.lotPoint,
+            parcelle: demande.parcelle,
+            surface: demande.surface,
             titre: '',
             touche: demande.touche,
+            interieur: demande.interieur,
         };
     }).filter((item) => item.ring.length >= 3);
-}
-
-function mesuresPolygone(polygone) {
-    try {
-        const boite = turf.bbox(polygone);
-        return {
-            largeur: turf.distance([boite[0], boite[1]], [boite[2], boite[1]], { units: 'meters' }),
-            hauteur: turf.distance([boite[0], boite[1]], [boite[0], boite[3]], { units: 'meters' }),
-        };
-    } catch (e) {
-        return { largeur: 0, hauteur: 0 };
-    }
 }
 
 async function polygoneSelectionne() {
@@ -1526,8 +1529,10 @@ async function ouvrirExtraitPlan() {
         erreurExtrait.value = 'Cette parcelle n’a pas de géométrie.';
         return;
     }
+    planChoisi.value = 'extrait';
     echelleSituationChoisie.value = 2000;
     echelleParcelleChoisie.value = 500;
+    echelleUniqueChoisie.value = 1000;
     choixEchelleOuvert.value = true;
 }
 
@@ -1537,7 +1542,8 @@ async function validerEchelles() {
     extraitEnCours.value = true;
     try {
         const polygone = await polygoneSelectionne();
-        const message = blocageExtrait(selectedInfo.value?.data, estPolygone(polygone));
+        const plan = planChoisi.value;
+        const message = blocageExtrait(selectedInfo.value?.data, estPolygone(polygone), plan);
         if (message) {
             erreurExtrait.value = message;
             return;
@@ -1549,24 +1555,18 @@ async function validerEchelles() {
         const superficieM2 = Number.isFinite(surfaceSaisie) && surfaceSaisie > 0
             ? surfaceSaisie
             : surfaceM2(polygone);
-        const mesures = mesuresPolygone(polygone);
-        const echelleSituation = echelleAdaptee(
-            echelleSituationChoisie.value,
-            [2000, 5000, 10000, 20000, 50000],
-            mesures.largeur,
-            mesures.hauteur,
-            { w: 74, h: 50 },
-            20,
+        const deuxEchelles = plan === 'extrait' || plan === 'morcellement';
+        const echelleSituation = Number(echelleSituationChoisie.value) || 2000;
+        const echelleParcelle = deuxEchelles
+            ? (Number(echelleParcelleChoisie.value) || 500)
+            : (Number(echelleUniqueChoisie.value) || 1000);
+        const cadreCarte = plan === 'situation' ? { w: 186, h: 196 } : { w: 186, h: 230 };
+        const voisins = await parcellesAutour(
+            polygone,
+            echelleSituation,
+            deuxEchelles ? null : porteeCarte(echelleParcelle, cadreCarte),
         );
-        const echelleParcelle = echelleAdaptee(
-            echelleParcelleChoisie.value,
-            [200, 500, 1000, 2000, 5000, 10000, 20000],
-            mesures.largeur,
-            mesures.hauteur,
-            { w: 178, h: 108 },
-            14,
-        );
-        const commandes = commandesExtrait({
+        const commandes = deuxEchelles ? commandesExtrait({
             bureau: bureauExtrait.nom,
             ville: bureauExtrait.ville,
             infos: {
@@ -1586,20 +1586,40 @@ async function validerEchelles() {
                 dossier: data.txt_num_dossier,
                 anneeDossier: data.dt_date_creation },
             sujet: anneauPrincipal(polygone),
-            parcelles: await parcellesAutour(polygone, echelleSituation),
+            parcelles: voisins,
             sections: await limitesSectionAutour(polygone),
             superficieM2,
             echelles: {
                 situation: echelleSituation,
                 parcelle: echelleParcelle,
-            } });
+            },
+            variante: plan === 'morcellement' ? 'morcellement' : 'extrait',
+            signataire: props.signataireExtrait,
+        }) : commandesCarte({
+            type: plan,
+            bureau: bureauExtrait.nom,
+            infos: {
+                region: data.region,
+                departement: data.departement,
+                arrondissement: data.arrondissement,
+                commune: data.commune,
+                requerant: data.titulaire,
+                titre: data.txt_num_titre,
+                lot: data.txt_num_lotissement,
+                nicad: data.txt_nicad,
+            },
+            sujet: anneauPrincipal(polygone),
+            parcelles: voisins,
+            superficieM2,
+            echelle: echelleParcelle,
+        });
         if (!commandes) {
             erreurExtrait.value = 'Cette parcelle n’a pas de géométrie.';
             return;
         }
-        extraitOuvert.value = { commandes, fichier: nomFichierExtrait(data) };
+        extraitOuvert.value = { commandes, fichier: nomFichierExtrait(data, plan) };
     } catch (e) {
-        erreurExtrait.value = 'Impossible de préparer l’extrait de plan.';
+        erreurExtrait.value = 'Impossible de préparer le plan.';
     } finally {
         extraitEnCours.value = false;
     }
@@ -2867,7 +2887,7 @@ onBeforeUnmount(() => {
                             <div class="mt-4 space-y-2">
                                 <button type="button" @click="ouvrirExtraitPlan" :disabled="extraitEnCours || selectedInfo.loading"
                                     class="flex items-center justify-center w-full gap-2 py-2.5 text-sm font-medium text-white transition bg-primary rounded-xl shadow-sm hover:bg-primary-dark disabled:opacity-60">
-                                    {{ extraitEnCours ? 'Préparation de l’extrait…' : 'Générer extrait de plan' }}
+                                    {{ extraitEnCours ? 'Préparation du plan…' : 'Générer un plan' }}
                                 </button>
                                 <p v-if="erreurExtrait" class="text-sm text-red-700">{{ erreurExtrait }}</p>
                                 <button v-if="selectedInfo.feature" type="button" @click="zoomSurEntite(selectedInfo.feature)"
@@ -3306,9 +3326,18 @@ onBeforeUnmount(() => {
 
         <div v-if="choixEchelleOuvert" class="fixed inset-0 z-[3000] flex items-center justify-center bg-black/55 p-4">
             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-                <h2 class="text-lg font-semibold text-primary-txt">Choisir les échelles</h2>
-                <p class="mt-1 text-sm text-primary-txt/70">Une échelle pour chaque plan, puis validez pour afficher l’extrait.</p>
+                <h2 class="text-lg font-semibold text-primary-txt">Choisir le plan</h2>
+                <p class="mt-1 text-sm text-primary-txt/70">Le plan d’abord, puis l’échelle. L’aperçu n’enregistre rien.</p>
                 <fieldset class="mt-5">
+                    <legend class="text-sm font-semibold text-primary-txt">Plan</legend>
+                    <div class="mt-2 space-y-2">
+                        <label v-for="plan in plansDisponibles" :key="plan.id" class="flex items-center gap-2 text-sm text-primary-txt">
+                            <input v-model="planChoisi" type="radio" name="plan-choisi" :value="plan.id" class="text-primary">
+                            {{ plan.label }}
+                        </label>
+                    </div>
+                </fieldset>
+                <fieldset v-if="planChoisi === 'extrait' || planChoisi === 'morcellement'" class="mt-5">
                     <legend class="text-sm font-semibold text-primary-txt">Échelle pour plan de situation</legend>
                     <div class="mt-2 space-y-2">
                         <label v-for="valeur in [2000, 5000, 10000]" :key="`situation-${valeur}`" class="flex items-center gap-2 text-sm text-primary-txt">
@@ -3317,11 +3346,20 @@ onBeforeUnmount(() => {
                         </label>
                     </div>
                 </fieldset>
-                <fieldset class="mt-5">
+                <fieldset v-if="planChoisi === 'extrait' || planChoisi === 'morcellement'" class="mt-5">
                     <legend class="text-sm font-semibold text-primary-txt">Échelle pour plan parcelle</legend>
                     <div class="mt-2 space-y-2">
                         <label v-for="valeur in [200, 500, 1000]" :key="`parcelle-${valeur}`" class="flex items-center gap-2 text-sm text-primary-txt">
                             <input v-model="echelleParcelleChoisie" type="radio" name="echelle-parcelle" :value="valeur" class="text-primary">
+                            1/{{ valeur }}
+                        </label>
+                    </div>
+                </fieldset>
+                <fieldset v-else class="mt-5">
+                    <legend class="text-sm font-semibold text-primary-txt">Échelle</legend>
+                    <div class="mt-2 space-y-2">
+                        <label v-for="valeur in [500, 1000, 2000]" :key="`unique-${valeur}`" class="flex items-center gap-2 text-sm text-primary-txt">
+                            <input v-model="echelleUniqueChoisie" type="radio" name="echelle-unique" :value="valeur" class="text-primary">
                             1/{{ valeur }}
                         </label>
                     </div>

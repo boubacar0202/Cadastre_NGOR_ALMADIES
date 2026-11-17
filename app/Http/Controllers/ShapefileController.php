@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CodeAcces;
+use App\Models\User;
 use App\Models\PointDensifier;
 use App\Models\Shapefile;
 use Illuminate\Http\Request;
@@ -48,6 +49,7 @@ class ShapefileController extends Controller
                 'departement', 'arrondissement', 'commune'
             ])->get(),
             'shapefiles' => Shapefile::latest()->get(),
+            'signataireExtrait' => User::chefDeBureau()?->name ?? '',
         ]);
     }
 
@@ -71,7 +73,7 @@ class ShapefileController extends Controller
      *  3. Dossier temporaire
      *  4. Lecture avec php-shapefile
      *  5. Nettoyage (PolygonM → Polygon, Z/M)
-     *  6. Reprojection UTM 28N → WGS84
+     *  6. Reprojection vers WGS84 selon le .prj, sinon le SRID choisi
      *  7. Stockage GeoJSON
      *  8. Enregistrement en base
      */
@@ -225,12 +227,10 @@ class ShapefileController extends Controller
                 'features' => $features,
             ];
 
-            $srid = $request->input('srid', '4326');
-            $firstCoord = $this->getFirstCoordinate($features);
-            $needsReprojection = in_array($srid, ['32628', '2154'])
-                || ($firstCoord && (abs($firstCoord[0]) > 180 || abs($firstCoord[1]) > 90));
-            if ($needsReprojection) {
-                $this->reprojectAllFeatures($geojson['features']);
+            $srid = $this->sridSource($request, "{$tmpPath}/shape.prj");
+            $this->verifierCoordonneesSource($features, $srid);
+            if ($srid !== '4326') {
+                $this->reprojectAllFeatures($geojson['features'], $srid);
             }
 
             return $geojson;
@@ -324,15 +324,10 @@ class ShapefileController extends Controller
         if (!is_array($coords)) return $coords;
 
         if (isset($coords[0]) && is_numeric($coords[0])) {
-            $x = (float) $coords[0];
-            $y = (float) $coords[1];
-
-            // ✅ Détection UTM : x > 180 (mètres) ou y > 90
-            if (abs($x) > 180 || abs($y) > 90) {
-                [$x, $y] = $this->utm28nToWgs84($x, $y);
-            }
-
-            return [round($x, 8), round($y, 8)];
+            return [
+                round((float) $coords[0], 8),
+                round((float) $coords[1], 8),
+            ];
         }
 
         return array_map(fn($c) => $this->cleanCoordinates($c), $coords);
@@ -371,12 +366,165 @@ class ShapefileController extends Controller
     }
 
     /**
-     * Reprojette tous les features UTM 28N → WGS84
+     * Le .prj l'emporte lorsqu'il décrit une projection connue.
+     * Un .prj absent ou illisible laisse la place au SRID choisi.
+     * Une autre projection est refusée.
      */
-    private function reprojectAllFeatures(array &$features)
+    private function sridSource(Request $request, string $prjPath): string
     {
+        $projection = $this->interpreterPrj(is_file($prjPath) ? file_get_contents($prjPath) : null);
+
+        if ($projection['etat'] === 'inconnu') {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'prj' => "La projection du fichier .prj n’est pas prise en charge ({$projection['libelle']}). Utilisez WGS84, UTM 28N ou Lambert 93.",
+            ]);
+        }
+
+        if ($projection['etat'] === 'connu') {
+            return $projection['srid'];
+        }
+
+        $srid = (string) $request->input('srid', '4326');
+        if (!in_array($srid, ['4326', '32628', '2154'], true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'srid' => 'La projection choisie n’est pas prise en charge. Utilisez WGS84, UTM 28N ou Lambert 93.',
+            ]);
+        }
+
+        return $srid;
+    }
+
+    private function interpreterPrj(?string $contenu): array
+    {
+        if ($contenu === null || trim($contenu) === '') {
+            return ['etat' => 'absent'];
+        }
+
+        $texte = $this->textePrj($contenu);
+        if ($texte === null) {
+            return ['etat' => 'illisible'];
+        }
+
+        $compact = strtoupper(preg_replace('/\s+/', '', $texte) ?? '');
+        if (!str_contains($compact, 'GEOGCS[') && !str_contains($compact, 'PROJCS[') && !str_contains($compact, 'GEOCCS[')) {
+            return ['etat' => 'illisible'];
+        }
+
+        $nom = $this->nomProjection($texte);
+        $codes = [];
+        if (preg_match_all('/(?:AUTHORITY|ID)\["EPSG",(\d+)\]/', $compact, $trouves)) {
+            $codes = $trouves[1];
+        }
+        if (in_array('32628', $codes, true)) {
+            return ['etat' => 'connu', 'srid' => '32628'];
+        }
+        if (in_array('2154', $codes, true)) {
+            return ['etat' => 'connu', 'srid' => '2154'];
+        }
+
+        if (str_contains($compact, 'PROJCS[')) {
+            if ($this->estUtm28N($compact)) {
+                return ['etat' => 'connu', 'srid' => '32628'];
+            }
+            if ($this->estLambert93($compact)) {
+                return ['etat' => 'connu', 'srid' => '2154'];
+            }
+
+            return ['etat' => 'inconnu', 'libelle' => $nom ?: 'projection projetée inconnue'];
+        }
+
+        if (str_contains($compact, 'WGS_1984') || str_contains($compact, 'WGS84') || str_contains($compact, 'WGS1984')) {
+            return ['etat' => 'connu', 'srid' => '4326'];
+        }
+
+        return ['etat' => 'inconnu', 'libelle' => $nom ?: 'projection géographique inconnue'];
+    }
+
+    private function textePrj(string $contenu): ?string
+    {
+        if (str_starts_with($contenu, "\xEF\xBB\xBF")) {
+            $contenu = substr($contenu, 3);
+        }
+        if (str_contains($contenu, "\0")) {
+            $contenu = mb_convert_encoding($contenu, 'UTF-8', 'UTF-16');
+        } elseif (!mb_check_encoding($contenu, 'UTF-8')) {
+            $contenu = mb_convert_encoding($contenu, 'UTF-8', 'Windows-1252');
+        }
+
+        $texte = trim($contenu);
+
+        return $texte === '' ? null : $texte;
+    }
+
+    private function nomProjection(string $texte): string
+    {
+        if (preg_match('/(?:PROJCS|GEOGCS|GEOCCS)\s*\[\s*"([^"]+)"/', $texte, $nom)) {
+            return $nom[1];
+        }
+
+        return '';
+    }
+
+    private function estUtm28N(string $compact): bool
+    {
+        if (preg_match('/UTM_?ZONE_?(\d+)/', $compact, $zone) || preg_match('/UTMZONE(\d+)/', $compact, $zone)) {
+            return $zone[1] === '28';
+        }
+
+        return str_contains($compact, 'TRANSVERSE_MERCATOR')
+            && str_contains($compact, '"CENTRAL_MERIDIAN",-15')
+            && str_contains($compact, '"FALSE_EASTING",500000');
+    }
+
+    private function estLambert93(string $compact): bool
+    {
+        if (str_contains($compact, 'LAMBERT_93') || str_contains($compact, 'LAMBERT93') || str_contains($compact, 'RGF93_LAMBERT_93')) {
+            return true;
+        }
+
+        return str_contains($compact, 'LAMBERT_CONFORMAL_CONIC')
+            && str_contains($compact, '"CENTRAL_MERIDIAN",3')
+            && str_contains($compact, '"FALSE_EASTING",700000')
+            && str_contains($compact, '"FALSE_NORTHING",6600000');
+    }
+
+    private function verifierCoordonneesSource(array $features, string $srid): void
+    {
+        $point = $this->getFirstCoordinate($features);
+        if (!$point) {
+            return;
+        }
+
+        $horsDegres = abs($point[0]) > 180 || abs($point[1]) > 90;
+        if ($srid === '4326' && $horsDegres) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'srid' => 'Ces coordonnées ne sont pas en WGS84. Choisissez UTM 28N ou Lambert 93, ou joignez le fichier .prj.',
+            ]);
+        }
+        if ($srid !== '4326' && !$horsDegres) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'srid' => 'Ces coordonnées sont déjà en degrés. Choisissez WGS84, ou joignez le fichier .prj.',
+            ]);
+        }
+    }
+
+    /**
+     * Reprojette les entités vers WGS84 selon le SRID source.
+     */
+    private function reprojectAllFeatures(array &$features, string $srid)
+    {
+        $definitions = [
+            '32628' => '+proj=utm +zone=28 +datum=WGS84 +units=m +no_defs',
+            '2154' => '+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+        ];
+        if (!isset($definitions[$srid])) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'srid' => 'La projection choisie n’est pas prise en charge. Utilisez WGS84, UTM 28N ou Lambert 93.',
+            ]);
+        }
+
         $proj4 = new \proj4php\Proj4php();
-        $from = new \proj4php\Proj('+proj=utm +zone=28 +datum=WGS84 +units=m +no_defs', $proj4);
+        $from = new \proj4php\Proj($definitions[$srid], $proj4);
         $to   = new \proj4php\Proj('+proj=longlat +datum=WGS84 +no_defs', $proj4);
 
         foreach ($features as &$feature) {

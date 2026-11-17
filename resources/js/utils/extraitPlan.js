@@ -1,7 +1,8 @@
-export function blocageExtrait(data, aUnPolygone) {
+export function blocageExtrait(data, aUnPolygone, plan = 'extrait') {
     if (!aUnPolygone) {
         return 'Cette parcelle n’a pas de géométrie.';
     }
+    if (plan !== 'extrait') return '';
     const service = String(data?.slt_service_rendu || '').trim();
     if (service === 'Extrait de plan') {
         const lot = String(data?.txt_num_lotissement || '').trim();
@@ -13,9 +14,15 @@ export function blocageExtrait(data, aUnPolygone) {
     return '';
 }
 
-export function nomFichierExtrait(data) {
+export function nomFichierExtrait(data, plan = 'extrait') {
     const base = String(data?.txt_nicad || data?.txt_num_dossier || 'parcelle').trim() || 'parcelle';
-    return `extrait-plan-${base.replace(/[^\w.-]+/g, '-')}.pdf`;
+    const noms = {
+        extrait: 'extrait-plan',
+        cic: 'plan-cic',
+        situation: 'plan-situation',
+        morcellement: 'plan-morcellement',
+    };
+    return `${noms[plan] || 'plan'}-${base.replace(/[^\w.-]+/g, '-')}.pdf`;
 }
 
 export function anneauPrincipal(feature) {
@@ -405,9 +412,66 @@ function analyserCotes(anneau, voisins, tous, lignesSection = []) {
     }).filter((cote) => cote.longueur >= 0.4);
 }
 
-function lignesVoisin(voisin) {
-    const lot = valeurOuVide(voisin?.lot);
-    return lot ? [`Lot n°${lot}`] : ['TNI'];
+function segmentDansDisque(a, b, centre, rayon) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const fx = a.x - centre.x;
+    const fy = a.y - centre.y;
+    const aa = dx * dx + dy * dy;
+    const bb = 2 * (fx * dx + fy * dy);
+    const cc = fx * fx + fy * fy - rayon * rayon;
+    const dedans = (point) => (point.x - centre.x) ** 2 + (point.y - centre.y) ** 2 <= rayon * rayon + 0.01;
+    const bornes = [0, 1];
+    if (aa > 1e-9) {
+        const delta = bb * bb - 4 * aa * cc;
+        if (delta >= 0) {
+            const racine = Math.sqrt(delta);
+            [-bb - racine, -bb + racine].forEach((valeur) => {
+                const t = valeur / (2 * aa);
+                if (t > 0 && t < 1) bornes.push(t);
+            });
+        }
+    }
+    bornes.sort((gauche, droite) => gauche - droite);
+    const morceaux = [];
+    for (let i = 0; i < bornes.length - 1; i += 1) {
+        const debut = bornes[i];
+        const fin = bornes[i + 1];
+        if (fin - debut < 1e-4) continue;
+        const milieu = { x: a.x + dx * ((debut + fin) / 2), y: a.y + dy * ((debut + fin) / 2) };
+        if (!dedans(milieu)) continue;
+        morceaux.push([
+            { x: a.x + dx * debut, y: a.y + dy * debut },
+            { x: a.x + dx * fin, y: a.y + dy * fin },
+        ]);
+    }
+    return morceaux;
+}
+
+function libelleLot(valeur) {
+    const chiffres = String(valeur ?? '').replace(/\D/g, '');
+    if (!chiffres) return '';
+    const nombre = Number.parseInt(chiffres, 10);
+    return Number.isFinite(nombre) ? String(nombre) : '';
+}
+
+function centreVisible(points, centre, rayon) {
+    const dansDisque = (point) => (point.x - centre.x) ** 2 + (point.y - centre.y) ** 2 <= rayon * rayon + 0.01;
+    const barycentre = (liste) => liste.reduce((somme, point) => ({
+        x: somme.x + point.x / liste.length,
+        y: somme.y + point.y / liste.length,
+    }), { x: 0, y: 0 });
+    const milieu = barycentre(points);
+    if (dansDisque(milieu) && contient(milieu, points)) return milieu;
+    const interieurs = points.filter(dansDisque);
+    if (!interieurs.length) return null;
+    const candidat = barycentre(interieurs);
+    if (dansDisque(candidat) && contient(candidat, points)) return candidat;
+    const rapproche = {
+        x: interieurs[0].x * 0.65 + milieu.x * 0.35,
+        y: interieurs[0].y * 0.65 + milieu.y * 0.35,
+    };
+    return dansDisque(rapproche) && contient(rapproche, points) ? rapproche : null;
 }
 
 function nomRue(ecart) {
@@ -465,19 +529,6 @@ export function echelleRetenue(valeur, choix, defaut) {
     return choix.includes(nombre) ? nombre : defaut;
 }
 
-export function echelleAdaptee(demande, choix, largeurM, hauteurM, cadreMm, margeM) {
-    const besoinX = Number(largeurM) + margeM * 2;
-    const besoinY = Number(hauteurM) + margeM * 2;
-    const ordonne = choix
-        .map(Number)
-        .filter((echelle) => echelle >= Number(demande))
-        .sort((gauche, droite) => gauche - droite);
-    const retenue = ordonne.find((echelle) => (
-        (cadreMm.w * echelle) / 1000 >= besoinX && (cadreMm.h * echelle) / 1000 >= besoinY
-    ));
-    return retenue || ordonne[ordonne.length - 1] || Number(demande) || choix[0];
-}
-
 function empriseDe(points) {
     return points.reduce((boite, point) => ({
         minX: Math.min(boite.minX, point.x),
@@ -508,7 +559,83 @@ export function porteeSituation(echelle) {
     return Math.ceil(Math.hypot(demiX, demiY) + 40);
 }
 
-export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, sections, superficieM2, echelles }) {
+export function porteeCarte(echelle, cadre) {
+    const retenue = Number(echelle) || 1000;
+    const demiX = (cadre.w * retenue) / 2000;
+    const demiY = (cadre.h * retenue) / 2000;
+    return Math.ceil(Math.hypot(demiX, demiY) + 30);
+}
+
+function utm28(lng, lat) {
+    const a = 6378137;
+    const f = 1 / 298.257223563;
+    const k0 = 0.9996;
+    const e2 = f * (2 - f);
+    const ep2 = e2 / (1 - e2);
+    const lon0 = (-15 * Math.PI) / 180;
+    const latR = (lat * Math.PI) / 180;
+    const lonR = (lng * Math.PI) / 180;
+    const sinus = Math.sin(latR);
+    const cosinus = Math.cos(latR);
+    const n = a / Math.sqrt(1 - e2 * sinus * sinus);
+    const t = Math.tan(latR) ** 2;
+    const c = ep2 * cosinus * cosinus;
+    const grandA = cosinus * (lonR - lon0);
+    const e4 = e2 * e2;
+    const e6 = e4 * e2;
+    const m = a * ((1 - e2 / 4 - (3 * e4) / 64 - (5 * e6) / 256) * latR
+        - ((3 * e2) / 8 + (3 * e4) / 32 + (45 * e6) / 1024) * Math.sin(2 * latR)
+        + ((15 * e4) / 256 + (45 * e6) / 1024) * Math.sin(4 * latR)
+        - ((35 * e6) / 3072) * Math.sin(6 * latR));
+    const est = k0 * n * (grandA + ((1 - t + c) * grandA ** 3) / 6
+        + ((5 - 18 * t + t * t + 72 * c - 58 * ep2) * grandA ** 5) / 120) + 500000;
+    const nord = k0 * (m + n * Math.tan(latR) * (grandA ** 2 / 2
+        + ((5 - t + 9 * c + 4 * c * c) * grandA ** 4) / 24
+        + ((61 - 58 * t + t * t + 600 * c - 330 * ep2) * grandA ** 6) / 720));
+    return { x: est, y: nord };
+}
+
+function hachurer(points, ajouter, couleur, pas = 2.4) {
+    if (points.length < 3) return;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    points.forEach(([x, y]) => {
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+    });
+    for (let base = minX - (maxY - minY); base < maxX; base += pas) {
+        const croisements = [];
+        for (let i = 0; i < points.length; i += 1) {
+            const depart = points[i];
+            const arrivee = points[(i + 1) % points.length];
+            const dx = arrivee[0] - depart[0];
+            const dy = arrivee[1] - depart[1];
+            const denom = dy - dx;
+            if (Math.abs(denom) < 1e-9) continue;
+            const t = (depart[0] - base - depart[1]) / denom;
+            if (t < -1e-6 || t > 1 + 1e-6) continue;
+            croisements.push([depart[0] + t * dx, depart[1] + t * dy]);
+        }
+        croisements.sort((gauche, droite) => gauche[0] - droite[0]);
+        for (let i = 0; i + 1 < croisements.length; i += 2) {
+            ajouter({
+                type: 'line',
+                x1: croisements[i][0],
+                y1: croisements[i][1],
+                x2: croisements[i + 1][0],
+                y2: croisements[i + 1][1],
+                width: 0.12,
+                color: couleur,
+            });
+        }
+    }
+}
+
+export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, sections, superficieM2, echelles, variante = 'extrait', signataire = '' }) {
     const anneau = ouvrirAnneau(sujet);
     if (anneau.length < 3) return null;
     const origine = anneau.reduce((somme, point) => ({
@@ -524,8 +651,11 @@ export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, secti
     const emprise = empriseDe(sujetLocal);
     const autour = (parcelles || []).map((parcelle) => ({
         lot: valeurOuVide(parcelle.lot),
+        parcelle: valeurOuVide(parcelle.parcelle),
+        surface: Number(parcelle.surface) || 0,
         titre: valeurOuVide(parcelle.titre),
         touche: !!parcelle.touche,
+        interieur: !!parcelle.interieur,
         points: localiser(parcelle.ring || []),
     })).filter((parcelle) => parcelle.points.length >= 3);
     const commandes = [];
@@ -576,22 +706,8 @@ export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, secti
     const principal = { x: 16, y: 116, w: 178, h: 108 };
     ajouter({ type: 'rect', x: situation.x, y: situation.y, w: situation.w, h: situation.h, width: 0.3 });
 
-    const echelleSituation = echelleAdaptee(
-        echelleRetenue(echelles?.situation, [2000, 5000, 10000, 20000, 50000], 2000),
-        [2000, 5000, 10000, 20000, 50000],
-        emprise.maxX - emprise.minX,
-        emprise.maxY - emprise.minY,
-        situation,
-        20,
-    );
-    const echellePrincipale = echelleAdaptee(
-        echelleRetenue(echelles?.parcelle, [200, 500, 1000], 500),
-        [200, 500, 1000, 2000, 5000, 10000, 20000],
-        emprise.maxX - emprise.minX,
-        emprise.maxY - emprise.minY,
-        principal,
-        14,
-    );
+    const echelleSituation = echelleRetenue(echelles?.situation, [2000, 5000, 10000], 2000);
+    const echellePrincipale = echelleRetenue(echelles?.parcelle, [200, 500, 1000], 500);
     const centreEmprise = {
         x: (emprise.minX + emprise.maxX) / 2,
         y: (emprise.minY + emprise.maxY) / 2,
@@ -686,27 +802,24 @@ export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, secti
         if (depasse) {
             lignePrincipale(pagePrincipale(cote.debut), pagePrincipale(cote.fin), 0.35);
         }
-        const angle = angleLisible(pagePrincipale(cote.a), pagePrincipale(cote.b));
-        if (cote.voisin) {
-            lignesVoisin(cote.voisin).forEach((ligne, index) => {
-                const place = dehors(cote.milieu, cote.nx, cote.ny, 6 + index * 3.4);
-                textePrincipal(place[0], place[1], ligne, 2.15, 'normal', 'middle', angle);
-            });
-        }
         if (cote.face) {
             lignePrincipale(pagePrincipale(cote.face.debut), pagePrincipale(cote.face.fin), 0.35);
-            if (cote.face.parcelle) {
-                lignesVoisin(cote.face.parcelle).forEach((ligne, index) => {
-                    const place = dehors(cote.face.milieu, cote.nx, cote.ny, 3.4 + index * 3.2);
-                    textePrincipal(place[0], place[1], ligne, 2.15, 'normal', 'middle', angle);
-                });
-            }
         }
         if (cote.rue) {
             const ecart = cote.face?.ecart;
+            const angle = angleLisible(pagePrincipale(cote.a), pagePrincipale(cote.b));
             const rue = dehors(cote.milieu, cote.nx, cote.ny, ecart ? ecart / 2 : 6);
             textePrincipal(rue[0], rue[1], nomRue(ecart), 2.15, 'normal', 'middle', angle);
         }
+    });
+    const rayonMetres = (68 * echellePrincipale) / 1000;
+    autour.forEach((parcelle) => {
+        parcelle.points.forEach((point, index) => {
+            const suivant = parcelle.points[(index + 1) % parcelle.points.length];
+            segmentDansDisque(point, suivant, centreEmprise, rayonMetres).forEach(([debut, fin]) => {
+                lignePrincipale(pagePrincipale(debut), pagePrincipale(fin), 0.3);
+            });
+        });
     });
     const sujetPage = rognerPolygone(sujetLocal.map(pagePrincipale), principal);
     if (sujetPage.length >= 3) {
@@ -714,10 +827,38 @@ export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, secti
             type: 'polygon',
             points: sujetPage,
             fill: [255, 255, 255],
-            stroke: [0, 0, 0],
-            width: 0.55,
+            stroke: variante === 'morcellement' ? [180, 0, 0] : [0, 0, 0],
+            width: variante === 'morcellement' ? 0.7 : 0.55,
         });
     }
+    if (variante === 'morcellement') {
+        autour.filter((parcelle) => parcelle.interieur).forEach((parcelle) => {
+            const page = rognerPolygone(parcelle.points.map(pagePrincipale), principal);
+            if (page.length < 3) return;
+            hachurer(page, ajouter, [80, 80, 80], 2.2);
+            page.forEach((point, index) => {
+                const suivant = page[(index + 1) % page.length];
+                ajouter({ type: 'line', x1: point[0], y1: point[1], x2: suivant[0], y2: suivant[1], width: 0.25 });
+            });
+            const place = centreVisible(parcelle.points, centreEmprise, rayonMetres);
+            if (!place) return;
+            const [x, y] = pagePrincipale(place);
+            textePrincipal(x, y, parcelle.lot || 'TNI', 2.15, 'normal', 'middle');
+        });
+    }
+    autour.forEach((parcelle) => {
+        if (parcelle.interieur) return;
+        const place = centreVisible(parcelle.points, centreEmprise, rayonMetres);
+        if (!place) return;
+        const [x, y] = pagePrincipale(place);
+        const lot = libelleLot(parcelle.lot);
+        if (lot) {
+            textePrincipal(x, y - 1.7, `Lot n° ${lot}`, 2.15, 'normal', 'middle');
+            textePrincipal(x, y + 1.7, 'TNI', 2.15, 'normal', 'middle');
+        } else {
+            textePrincipal(x, y, 'TNI', 2.15, 'normal', 'middle');
+        }
+    });
     if (coteNom && !coteNom.voisin && !coteNom.rue) {
         const place = dehors(coteNom.milieu, coteNom.nx, coteNom.ny, 8);
         textePrincipal(place[0], place[1], nomSujet(infos), 2.4, 'bold', 'middle');
@@ -741,14 +882,209 @@ export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, secti
     });
 
     textePage(105, 277, `ECHELLE = 1 : ${echellePrincipale}`, 2.4, 'bold', 'middle');
-    textePage(16, 248, 'Extrait certifié conforme', 2.6, 'bold', 'start');
-    textePage(16, 254, `${valeurOuVide(ville)}, le ${dateDuJour()}`, 2.5, 'normal', 'start');
-    textePage(16, 262, 'Le chef du Bureau', 2.5, 'normal', 'start');
-    textePage(16, 274, 'Saliou FAYE', 2.5, 'normal', 'start');
+    if (variante === 'morcellement') {
+        const bornes = coins.slice(0, 8).map((point, index) => {
+            const projete = utm28(point.lng, point.lat);
+            return [`B${index + 1}`, projete.x.toFixed(2), projete.y.toFixed(2)];
+        });
+        const tableX = 16;
+        const tableY = 196;
+        const tableH = 7 + bornes.length * 3.2;
+        ajouter({ type: 'rect', x: tableX, y: tableY, w: 36, h: tableH, fill: [255, 255, 255], width: 0.25 });
+        textePage(tableX + 2, tableY + 3.2, 'Pts', 1.8, 'bold', 'start');
+        textePage(tableX + 9, tableY + 3.2, 'X', 1.8, 'bold', 'start');
+        textePage(tableX + 20, tableY + 3.2, 'Y', 1.8, 'bold', 'start');
+        bornes.forEach((ligne, index) => {
+            const y = tableY + 7 + index * 3.2;
+            textePage(tableX + 2, y, ligne[0], 1.7, 'normal', 'start');
+            textePage(tableX + 9, y, ligne[1], 1.7, 'normal', 'start');
+            textePage(tableX + 20, y, ligne[2], 1.7, 'normal', 'start');
+        });
+        const sousTable = tableY + tableH + 4;
+        textePage(16, sousTable, 'Système de coordonnées : UTM 28N', 2, 'normal', 'start');
+        textePage(16, sousTable + 4, 'Bornage effectué le ............', 2, 'normal', 'start');
+        textePage(16, sousTable + 8, 'Par ............ · Ingénieur Géomètre', 2, 'normal', 'start');
+        textePage(16, 252, 'Extrait certifié conforme', 2.4, 'bold', 'start');
+        textePage(16, 258, '............, le ............', 2.2, 'normal', 'start');
+        textePage(16, 264, 'Le chef du bureau', 2.2, 'normal', 'start');
+        textePage(120, 252, `PLAN DU TITRE N° ${valeurOuVide(infos.titre) || '............'}`, 2.3, 'bold', 'start');
+        textePage(120, 258, '............, le ............', 2.2, 'normal', 'start');
+        textePage(120, 264, 'Le conservateur de la propriété', 2.2, 'normal', 'start');
+        textePage(120, 268, 'et des droits fonciers', 2.2, 'normal', 'start');
+    } else {
+        textePage(16, 248, 'Extrait certifié conforme', 2.6, 'bold', 'start');
+        textePage(16, 254, `${valeurOuVide(ville)}, le ${dateDuJour()}`, 2.5, 'normal', 'start');
+        textePage(16, 262, 'Le chef du Bureau', 2.5, 'normal', 'start');
+        textePage(16, 274, valeurOuVide(signataire), 2.5, 'normal', 'start');
+        textePage(105, 288, mentionDossier(infos.dossier), 2.5, 'bold', 'middle');
+    }
     ajouter({ type: 'rect', x: 10.6, y: 52.6, w: 190.8, h: 228.8, width: 0.35 });
     ajouter({ type: 'rect', x: 12, y: 54, w: 188, h: 226, width: 0.2 });
-    textePage(105, 288, mentionDossier(infos.dossier), 2.5, 'bold', 'middle');
 
+    return commandes;
+}
+
+export function commandesCarte({ type, bureau, infos, sujet, parcelles, superficieM2, echelle }) {
+    const anneau = ouvrirAnneau(sujet);
+    if (anneau.length < 3) return null;
+    const origine = anneau.reduce((somme, point) => ({
+        lng: somme.lng + point.lng / anneau.length,
+        lat: somme.lat + point.lat / anneau.length,
+    }), { lng: 0, lat: 0 });
+    const localiser = (ring) => ouvrirAnneau(ring).map((point) => ({
+        ...versLocal(point, origine),
+        lng: point.lng,
+        lat: point.lat,
+    }));
+    const sujetLocal = sensHoraireDepuisLeNord(localiser(anneau));
+    const emprise = empriseDe(sujetLocal);
+    const autour = (parcelles || []).map((parcelle) => ({
+        lot: valeurOuVide(parcelle.lot),
+        parcelle: valeurOuVide(parcelle.parcelle),
+        surface: Number(parcelle.surface) || 0,
+        touche: !!parcelle.touche,
+        points: localiser(parcelle.ring || []),
+    })).filter((parcelle) => parcelle.points.length >= 3);
+    const commandes = [];
+    const ajouter = (commande) => commandes.push(commande);
+    const textePage = (x, y, contenu, size = 2.5, weight = 'normal', anchor = 'start', rotation = 0) => {
+        if (!String(contenu ?? '').trim()) return;
+        ajouter({ type: 'text', x, y, text: contenu, size, weight, anchor, rotation });
+    };
+    const axe = 42;
+    textePage(axe, 8, 'RÉPUBLIQUE DU SÉNÉGAL', 3.2, 'bold', 'middle');
+    textePage(axe, 12, 'Un Peuple – Un But – Une Foi', 1.9, 'normal', 'middle');
+    ajouter({ type: 'line', x1: 28, y1: 14, x2: 56, y2: 14, width: 0.2 });
+    textePage(axe, 17, 'MINISTÈRE DE L\'ECONOMIE', 3, 'bold', 'middle');
+    textePage(axe, 21, 'DES FINANCES ET DU PLAN', 3, 'bold', 'middle');
+    ajouter({ type: 'image', src: '/logo-dgid.png', x: 22, y: 23, w: 40, h: 9 });
+    textePage(axe, 35, `CENTRE DES SERVICES FISCAUX DE ${valeurOuVide(bureau).toUpperCase()}`, 2, 'bold', 'middle');
+    textePage(axe, 39, 'BUREAU DU CADASTRE', 2.2, 'bold', 'middle');
+
+    const situation = type === 'situation';
+    const cadre = situation
+        ? { x: 12, y: 56, w: 186, h: 196 }
+        : { x: 12, y: 50, w: 186, h: 230 };
+    const echelleRetenueCarte = echelleRetenue(echelle, [500, 1000, 2000], 1000);
+    const centreEmprise = {
+        x: (emprise.minX + emprise.maxX) / 2,
+        y: (emprise.minY + emprise.maxY) / 2,
+    };
+    const boite = fenetre(centreEmprise, cadre, echelleRetenueCarte);
+    const page = (point) => versPage(point, boite, echelleRetenueCarte, cadre);
+    const ligne = (a, b, width, color) => {
+        const segment = rognerSegment(a, b, cadre);
+        if (!segment) return;
+        ajouter({ type: 'line', x1: segment[0][0], y1: segment[0][1], x2: segment[1][0], y2: segment[1][1], width, color });
+    };
+    const texteCadre = (x, y, contenu, size, weight = 'normal') => {
+        if (!dansRectangle([x, y], cadre, 1)) return;
+        textePage(x, y, contenu, size, weight, 'middle');
+    };
+
+    if (situation) {
+        textePage(105, 12, 'PLAN DE SITUATION', 5, 'bold', 'middle');
+        textePage(78, 20, `TF n° : ${valeurOuVide(infos.titre) || '............'}`, 3, 'bold', 'start');
+        textePage(78, 26, `Lot n° : ${valeurOuVide(infos.lot) || '............'}`, 3, 'normal', 'start');
+        textePage(78, 32, `Requérant : ${court(infos.requerant, 42) || '............'}`, 2.6, 'normal', 'start');
+        ajouter({ type: 'rect', x: 150, y: 8, w: 48, h: 28, width: 0.3 });
+        [
+            ['Région', infos.region],
+            ['Département', infos.departement],
+            ['Arrond. / Com', infos.commune],
+        ].forEach(([libelle, valeur], index) => {
+            textePage(152, 13 + index * 6, `${libelle} : ${court(valeur, 14)}`, 2.1, 'normal', 'start');
+        });
+        textePage(16, 48, 'Référence : ............', 2.4, 'normal', 'start');
+        textePage(198, 48, `Superficie : ${formaterSuperficie(superficieM2)}`, 2.8, 'normal', 'end');
+    } else {
+        textePage(78, 12, 'PLAN POUR CIC N° ............', 4.2, 'bold', 'start');
+        textePage(78, 18, `Titre foncier ${valeurOuVide(infos.titre) || '............'}  Lot ${valeurOuVide(infos.lot) || '............'}`, 3, 'bold', 'start');
+        textePage(78, 24, `Superficie = ${formaterSuperficie(superficieM2)}`, 2.8, 'normal', 'start');
+        ajouter({ type: 'rect', x: 150, y: 8, w: 48, h: 30, width: 0.3 });
+        [
+            ['Région', infos.region],
+            ['Département', infos.departement],
+            ['Arrondissement', infos.arrondissement],
+            ['Commune', infos.commune],
+        ].forEach(([libelle, valeur], index) => {
+            textePage(152, 13 + index * 6, `${libelle} : ${court(valeur, 12)}`, 2, 'normal', 'start');
+        });
+        textePage(198, 44, `NICAD : ${formaterNicad(infos.nicad) || '............'}`, 2.8, 'bold', 'end');
+    }
+    textePage(105, cadre.y - 4, 'NORD', 3.4, 'bold', 'middle');
+
+    autour.forEach((parcelle) => {
+        parcelle.points.forEach((point, index) => {
+            const suivant = parcelle.points[(index + 1) % parcelle.points.length];
+            ligne(page(point), page(suivant), 0.25);
+        });
+        const milieu = parcelle.points.reduce((somme, point) => ({
+            x: somme.x + point.x / parcelle.points.length,
+            y: somme.y + point.y / parcelle.points.length,
+        }), { x: 0, y: 0 });
+        if (!contient(milieu, parcelle.points)) return;
+        const [x, y] = page(milieu);
+        const lot = parcelle.lot || parcelle.parcelle;
+        texteCadre(x, y - (situation ? 1.6 : 0), lot, 2.1, 'bold');
+        if (situation && parcelle.surface > 0) texteCadre(x, y + 1.6, `${parcelle.surface} m²`, 1.7);
+        if (situation && parcelle.parcelle && parcelle.lot) texteCadre(x, y + 4, parcelle.parcelle, 1.6);
+    });
+
+    const sujetPage = rognerPolygone(sujetLocal.map(page), cadre);
+    if (sujetPage.length >= 3) {
+        if (situation) hachurer(sujetPage, ajouter, [180, 0, 0], 2.2);
+        ajouter({
+            type: 'polygon',
+            points: sujetPage,
+            fill: situation ? null : [255, 255, 255],
+            stroke: situation ? [180, 0, 0] : [0, 0, 0],
+            width: situation ? 0.7 : 0.9,
+        });
+        const milieu = sujetLocal.reduce((somme, point) => ({
+            x: somme.x + point.x / sujetLocal.length,
+            y: somme.y + point.y / sujetLocal.length,
+        }), { x: 0, y: 0 });
+        const [x, y] = page(milieu);
+        texteCadre(x, y, valeurOuVide(infos.lot), 2.6, 'bold');
+    }
+
+    if (situation) {
+        const coins = coinsDuPolygone(sujetLocal);
+        const cotes = analyserCotes(coins, autour.filter((parcelle) => parcelle.touche), autour, []);
+        cotes.forEach((cote) => {
+            if (!cote.rue) return;
+            const angle = angleLisible(page(cote.a), page(cote.b));
+            const place = page({
+                x: cote.milieu.x + cote.nx * (cote.face?.ecart ? cote.face.ecart / 2 : 6),
+                y: cote.milieu.y + cote.ny * (cote.face?.ecart ? cote.face.ecart / 2 : 6),
+            });
+            if (!dansRectangle(place, cadre, 1)) return;
+            textePage(place[0], place[1], nomRue(cote.face?.ecart).toUpperCase(), 2, 'normal', 'middle', angle);
+        });
+        coins.forEach((point, index) => {
+            const [x, y] = page(point);
+            texteCadre(x, y, `B${index + 1}`, 1.8, 'bold');
+        });
+        const bornes = coins.slice(0, 8).map((point, index) => {
+            const projete = utm28(point.lng, point.lat);
+            return [`B${index + 1}`, projete.x.toFixed(2), projete.y.toFixed(2)];
+        });
+        const tableY = cadre.y + cadre.h + 3;
+        ajouter({ type: 'rect', x: 12, y: tableY, w: 70, h: 6 + bornes.length * 3, fill: [255, 255, 255], width: 0.25 });
+        bornes.forEach((ligne, index) => {
+            textePage(16, tableY + 3 + index * 3, `${ligne[0]}   ${ligne[1]}   ${ligne[2]}`, 1.7, 'normal', 'start');
+        });
+        textePage(90, tableY + 4, 'Limite du lot', 2.2, 'normal', 'start');
+        ajouter({ type: 'line', x1: 118, y1: tableY + 4, x2: 136, y2: tableY + 4, width: 0.6, color: [180, 0, 0] });
+        textePage(90, tableY + 9, 'Limite de l’aménagement', 2.2, 'normal', 'start');
+        ajouter({ type: 'line', x1: 140, y1: tableY + 9, x2: 158, y2: tableY + 9, width: 0.35 });
+        textePage(16, 278, 'Le Géomètre', 2.6, 'normal', 'start');
+        textePage(150, 278, 'Le Chef du bureau', 2.6, 'normal', 'start');
+    }
+
+    textePage(situation ? 105 : 16, 288, `Echelle = 1/${echelleRetenueCarte}`, 2.6, 'bold', situation ? 'middle' : 'start');
+    ajouter({ type: 'rect', x: cadre.x, y: cadre.y, w: cadre.w, h: cadre.h, width: 0.35 });
     return commandes;
 }
 
@@ -767,13 +1103,20 @@ export async function telechargerExtrait(commandes, fichier) {
             return;
         }
         if (commande.type === 'rect') {
-            doc.setDrawColor(0);
+            const trait = commande.color || [0, 0, 0];
+            doc.setDrawColor(...trait);
             doc.setLineWidth(commande.width || 0.25);
-            doc.rect(commande.x, commande.y, commande.w, commande.h);
+            if (commande.fill) {
+                doc.setFillColor(...commande.fill);
+                doc.rect(commande.x, commande.y, commande.w, commande.h, 'FD');
+            } else {
+                doc.rect(commande.x, commande.y, commande.w, commande.h);
+            }
             return;
         }
         if (commande.type === 'line') {
-            doc.setDrawColor(0);
+            const trait = commande.color || [0, 0, 0];
+            doc.setDrawColor(...trait);
             doc.setLineWidth(commande.width || 0.2);
             doc.line(commande.x1, commande.y1, commande.x2, commande.y2);
             return;
@@ -794,6 +1137,8 @@ export async function telechargerExtrait(commandes, fichier) {
             return;
         }
         if (commande.type === 'text') {
+            const encre = commande.color || [0, 0, 0];
+            doc.setTextColor(...encre);
             doc.setFont('helvetica', commande.weight === 'bold' ? 'bold' : 'normal');
             doc.setFontSize((commande.size || 2.5) * 2.83465);
             doc.text(String(commande.text ?? ''), commande.x, commande.y, {

@@ -54,8 +54,8 @@ async function telecharger() {
                         :y="commande.y"
                         :width="commande.w"
                         :height="commande.h"
-                        fill="none"
-                        stroke="#111111"
+                        :fill="commande.fill ? `rgb(${commande.fill.join(',')})` : 'none'"
+                        :stroke="commande.color ? `rgb(${commande.color.join(',')})` : '#111111'"
                         :stroke-width="commande.width || 0.25"
                     />
                     <line
@@ -64,7 +64,7 @@ async function telecharger() {
                         :y1="commande.y1"
                         :x2="commande.x2"
                         :y2="commande.y2"
-                        stroke="#111111"
+                        :stroke="commande.color ? `rgb(${commande.color.join(',')})` : '#111111'"
                         :stroke-width="commande.width || 0.2"
                     />
                     <polygon
@@ -89,7 +89,7 @@ async function telecharger() {
                         :font-size="commande.size || 2.7"
                         :font-weight="commande.weight === 'bold' ? 700 : 400"
                         font-family="Helvetica, Arial, sans-serif"
-                        fill="#111111"
+                        :fill="commande.color ? `rgb(${commande.color.join(',')})` : '#111111'"
                         :text-anchor="ancre(commande)"
                         dominant-baseline="middle"
                         :transform="commande.rotation ? `rotate(${commande.rotation} ${commande.x} ${commande.y})` : undefined"

@@ -22,8 +22,19 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'fonction',
         'is_validated',
     ];
+
+    public const FONCTIONS = [
+        'Chef de Bureau',
+        'Géomètre',
+        'Agent',
+        'Particulier',
+        'Secrétaire',
+    ];
+
+    public const FONCTION_CHEF_DE_BUREAU = 'Chef de Bureau';
 
     /**
      * The attributes that should be hidden for serialization.
@@ -56,6 +67,27 @@ class User extends Authenticatable
     {
         return (int) $this->id === 4
             && strcasecmp(trim((string) $this->email), 'mbengueboubacar095@gmail.com') === 0;
+    }
+
+    public static function chefDeBureau(): ?self
+    {
+        return static::query()
+            ->where('role', 'admin')
+            ->where('fonction', self::FONCTION_CHEF_DE_BUREAU)
+            ->orderBy('id')
+            ->first();
+    }
+
+    public function libererAutreChefDeBureau(): void
+    {
+        if ($this->fonction !== self::FONCTION_CHEF_DE_BUREAU) {
+            return;
+        }
+
+        static::query()
+            ->where('id', '!=', $this->id)
+            ->where('fonction', self::FONCTION_CHEF_DE_BUREAU)
+            ->update(['fonction' => null]);
     }
 
     public static function normalizeRole(mixed $role): string

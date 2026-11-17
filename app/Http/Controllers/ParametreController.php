@@ -373,6 +373,7 @@ class ParametreController extends Controller
             'email' => 'required|email|max:255|unique:users,email,' . $id,
             'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
             'role' => 'required|string|in:admin,user',
+            'fonction' => ['required', 'string', Rule::in(User::FONCTIONS)],
         ], [
             'name.required' => 'Le nom complet est obligatoire.',
             'email.required' => "L'adresse email est obligatoire.",
@@ -382,12 +383,19 @@ class ParametreController extends Controller
             'password.min' => 'Le mot de passe doit contenir au moins :min caractères.',
             'role.required' => 'Le rôle est obligatoire.',
             'role.in' => 'Le rôle choisi est invalide.',
+            'fonction.required' => 'La fonction est obligatoire.',
+            'fonction.in' => 'La fonction choisie est invalide.',
         ]);
+
+        if ($message = $this->messageFonctionReservee($validated)) {
+            return back()->withErrors(['fonction' => $message])->with('error', $message);
+        }
 
         $data = [
             'name' => $validated['name'],
             'email' => $validated['email'],
             'role' => $validated['role'],
+            'fonction' => $validated['fonction'],
         ];
 
         if (! empty($validated['password'])) {
@@ -403,10 +411,20 @@ class ParametreController extends Controller
         }
 
         $user->update($data);
+        $user->libererAutreChefDeBureau();
 
         return redirect()
             ->route($user->role === 'user' ? 'parametre.user' : 'parametre.admin')
             ->with('success', 'Utilisateur ' . $user->name . ' modifié avec succès');
+    }
+
+    private function messageFonctionReservee(array $validated): ?string
+    {
+        if (($validated['fonction'] ?? null) === User::FONCTION_CHEF_DE_BUREAU && ($validated['role'] ?? null) !== 'admin') {
+            return 'Seul un administrateur peut avoir la fonction Chef de Bureau.';
+        }
+
+        return null;
     }
 
     public function storeUser(Request $request)
@@ -427,6 +445,7 @@ class ParametreController extends Controller
             'email' => 'required|string|email|max:255|unique:users,email',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'role' => 'required|string|in:admin,user',
+            'fonction' => ['required', 'string', Rule::in(User::FONCTIONS)],
         ], [
             'name.required' => 'Le nom complet est obligatoire.',
             'email.required' => "L'adresse email est obligatoire.",
@@ -437,15 +456,23 @@ class ParametreController extends Controller
             'password.min' => 'Le mot de passe doit contenir au moins :min caractères.',
             'role.required' => 'Le rôle est obligatoire.',
             'role.in' => 'Le rôle choisi est invalide.',
+            'fonction.required' => 'La fonction est obligatoire.',
+            'fonction.in' => 'La fonction choisie est invalide.',
         ]);
+
+        if ($message = $this->messageFonctionReservee($validated)) {
+            return back()->withErrors(['fonction' => $message])->with('error', $message);
+        }
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => $validated['password'],
             'role' => $validated['role'],
+            'fonction' => $validated['fonction'],
             'is_validated' => true,
         ]);
+        $user->libererAutreChefDeBureau();
 
         $liste = $user->role === 'user' ? 'Utilisateurs' : 'administrateurs';
 
