@@ -264,6 +264,7 @@ function zoomToParcelle(layer) {
 
 const UTM28N = '+proj=utm +zone=28 +datum=WGS84 +units=m +no_defs';
 const WGS84 = '+proj=longlat +datum=WGS84 +no_defs';
+const CODE_COMMUNE_NGOR = '01130132';
 
 function gpsToUtm(latitude, longitude) {
     const [x, y] = proj4(WGS84, UTM28N, [longitude, latitude]);
@@ -285,7 +286,12 @@ function utmToGps(est, nord) {
 
 const TYPES_LOURDS = new Set(['limite_parcelle', 'numero_parcelle', 'numero_lot']);
 
+function estCoucheDoublon(shp) {
+    return shp?.verification?.type === 'doublon';
+}
+
 function isHeavyShapefile(shp) {
+    if (estCoucheDoublon(shp)) return false;
     if (TYPES_LOURDS.has(shp?.type_entite)) return true;
     const nb = shp.nb_entites || 0;
     if (nb > 1500) return true;
@@ -921,7 +927,7 @@ function ajouterCoucheShapefile(shp, data, textes) {
     layer._signature = signatureCouche(shp);
     layer.addTo(shapefilesLayerGroup.value);
     couchesShapefile.set(shp.id, layer);
-    if (enAvant) layer.bringToFront();
+    if (enAvant || estCoucheDoublon(shp)) layer.bringToFront();
 }
 
 async function chargerShapefiles() {
@@ -1048,13 +1054,16 @@ const shapefilesTries = computed(() => {
 });
 
 function couleurForte(shp) {
+    if (estCoucheDoublon(shp)) return '#b91c1c';
     return COULEURS_FORTES[shp?.type_entite] || shp?.couleur || '#052e16';
 }
 
 function styleShapefile(shp, enAvant) {
     const meta = metaTypeEntite(shp?.type_entite);
     const couleur = couleurForte(shp);
-    const remplissage = shp?.type_entite === 'limite_parcelle' ? '#22c55e' : couleur;
+    const remplissage = estCoucheDoublon(shp)
+        ? '#b91c1c'
+        : (shp?.type_entite === 'limite_parcelle' ? '#22c55e' : couleur);
     return {
         color: enAvant ? '#7f1d1d' : couleur,
         weight: enAvant ? 2.6 : (meta?.weight ?? 1.5),
@@ -1978,7 +1987,7 @@ function codeCommuneShapefile(section) {
         .find((verification) => verification?.type === 'parcelle'
             && chiffresCadastre(verification.section, 3) === section
             && verification.codeCommune);
-    return String(info?.codeCommune || '').replace(/\D/g, '').slice(0, 8);
+    return String(info?.codeCommune || CODE_COMMUNE_NGOR).replace(/\D/g, '').slice(0, 8);
 }
 
 async function verifierParcelle() {
@@ -3095,7 +3104,7 @@ onBeforeUnmount(() => {
                                     <div v-for="shp in shapefilesTries" :key="shp.id"
                                         class="flex items-center gap-3 p-3 bg-white border border-primary-only rounded-xl hover:border-primary hover:shadow-sm transition group">
                                         <span class="flex-shrink-0 w-4 h-4 rounded-full ring-2 ring-white shadow"
-                                            :style="{ background: shp.couleur || '#3388ff' }"></span>
+                                            :style="{ background: estCoucheDoublon(shp) ? '#b91c1c' : (shp.couleur || '#3388ff') }"></span>
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center gap-2">
                                                 <p class="text-sm font-semibold text-primary-txt truncate">{{ shp.nom }}</p>
@@ -3105,6 +3114,7 @@ onBeforeUnmount(() => {
                                                 <span v-if="libelleTypeEntite(shp.type_entite)">{{ libelleTypeEntite(shp.type_entite) }} · </span>{{ shp.nb_entites }} entité(s) · SRID {{ shp.srid }}
                                                 <span v-if="shp.verification?.type === 'parcelle'"> · NICAD {{ shp.verification.nicad || shp.verification.suffixe }}</span>
                                                 <span v-else-if="shp.verification?.type === 'projet'"> · {{ shp.verification.parcelles?.length || 0 }} parcelle(s) du projet</span>
+                                                <span v-else-if="estCoucheDoublon(shp)"> · NICAD en doublon</span>
                                             </p>
                                         </div>
                                         <div class="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition">
