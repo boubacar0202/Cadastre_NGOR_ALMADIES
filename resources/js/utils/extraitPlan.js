@@ -21,6 +21,7 @@ export function nomFichierExtrait(data, plan = 'extrait') {
         cic: 'plan-cic',
         situation: 'plan-situation',
         morcellement: 'plan-morcellement',
+        autorisation: 'plan-autorisation',
     };
     return `${noms[plan] || 'plan'}-${base.replace(/[^\w.-]+/g, '-')}.pdf`;
 }
@@ -65,6 +66,15 @@ export function formaterSuperficie(metresCarres) {
     const ares = Math.floor(centiaresTotaux / 100);
     const centiares = centiaresTotaux % 100;
     return `${ares} a ${String(centiares).padStart(2, '0')} ca`;
+}
+
+function formaterSuperficieCompacte(metresCarres) {
+    const valeur = Number(metresCarres);
+    if (!Number.isFinite(valeur) || valeur <= 0) return '—';
+    const centiaresTotaux = Math.round(valeur);
+    const ares = Math.floor(centiaresTotaux / 100);
+    const centiares = centiaresTotaux % 100;
+    return `${ares}a ${String(centiares).padStart(2, '0')}ca`;
 }
 
 function ouvrirAnneau(ring) {
@@ -644,7 +654,7 @@ function hachurer(points, ajouter, couleur, pas = 2.4) {
     }
 }
 
-export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, sections, superficieM2, echelles, variante = 'extrait', signataire = '' }) {
+export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, sections, superficieM2, echelles, variante = 'extrait', signataire = '', coordonnees = false }) {
     const anneau = ouvrirAnneau(sujet);
     if (anneau.length < 3) return null;
     const origine = anneau.reduce((somme, point) => ({
@@ -921,6 +931,26 @@ export function commandesExtrait({ bureau, ville, infos, sujet, parcelles, secti
         textePage(120, 264, 'Le conservateur de la propriété', 2.2, 'normal', 'start');
         textePage(120, 268, 'et des droits fonciers', 2.2, 'normal', 'start');
     } else {
+        if (coordonnees) {
+            const bornes = coins.slice(0, 8).map((point, index) => {
+                const projete = utm28(point.lng, point.lat);
+                return [`B${index + 1}`, projete.x.toFixed(2), projete.y.toFixed(2)];
+            });
+            const tableX = 16;
+            const tableY = 196;
+            const tableH = 7 + bornes.length * 3.2;
+            ajouter({ type: 'rect', x: tableX, y: tableY, w: 36, h: tableH, fill: [255, 255, 255], width: 0.25 });
+            textePage(tableX + 2, tableY + 3.2, 'Pts', 1.8, 'bold', 'start');
+            textePage(tableX + 9, tableY + 3.2, 'X', 1.8, 'bold', 'start');
+            textePage(tableX + 20, tableY + 3.2, 'Y', 1.8, 'bold', 'start');
+            bornes.forEach((ligne, index) => {
+                const y = tableY + 7 + index * 3.2;
+                textePage(tableX + 2, y, ligne[0], 1.7, 'normal', 'start');
+                textePage(tableX + 9, y, ligne[1], 1.7, 'normal', 'start');
+                textePage(tableX + 20, y, ligne[2], 1.7, 'normal', 'start');
+            });
+            textePage(16, tableY + tableH + 4, 'Système de coordonnées : UTM 28N', 2, 'normal', 'start');
+        }
         textePage(16, 248, 'Extrait certifié conforme', 2.6, 'bold', 'start');
         textePage(16, 254, `${valeurOuVide(ville)}, le ${dateDuJour()}`, 2.5, 'normal', 'start');
         textePage(16, 262, 'Le chef du Bureau', 2.5, 'normal', 'start');
@@ -970,10 +1000,13 @@ export function commandesCarte({ type, bureau, infos, sujet, parcelles, superfic
     textePage(axe, 35, `CENTRE DES SERVICES FISCAUX DE ${valeurOuVide(bureau).toUpperCase()}`, 2, 'bold', 'middle');
     textePage(axe, 39, 'BUREAU DU CADASTRE', 2.2, 'bold', 'middle');
 
+    const autorisation = type === 'autorisation';
     const situation = type === 'situation';
-    const cadre = situation
-        ? { x: 12, y: 56, w: 186, h: 196 }
-        : { x: 12, y: 50, w: 186, h: 230 };
+    const cadre = autorisation
+        ? { x: 12, y: 52, w: 186, h: 226 }
+        : situation
+            ? { x: 12, y: 56, w: 186, h: 196 }
+            : { x: 12, y: 50, w: 186, h: 230 };
     const echelleRetenueCarte = echelleRetenue(echelle, [500, 1000, 2000], 1000);
     const centreEmprise = {
         x: (emprise.minX + emprise.maxX) / 2,
@@ -990,6 +1023,82 @@ export function commandesCarte({ type, bureau, infos, sujet, parcelles, superfic
         if (!dansRectangle([x, y], cadre, 1)) return;
         textePage(x, y, contenu, size, weight, 'middle');
     };
+
+    if (autorisation) {
+        const nordX = 105;
+        const nordY = 6.5;
+        textePage(nordX, nordY, 'NORD', 2.8, 'bold', 'middle');
+        ajouter({
+            type: 'polygon',
+            points: [[nordX, nordY + 2.2], [nordX - 1.1, nordY + 4.4], [nordX + 1.1, nordY + 4.4]],
+            fill: [0, 0, 0],
+            stroke: [0, 0, 0],
+            width: 0.15,
+        });
+        ajouter({ type: 'line', x1: nordX, y1: nordY + 4.2, x2: nordX, y2: nordY + 11, width: 0.35 });
+        ajouter({ type: 'line', x1: nordX - 1.2, y1: nordY + 11, x2: nordX, y2: nordY + 8.8, width: 0.25 });
+        ajouter({ type: 'line', x1: nordX + 1.2, y1: nordY + 11, x2: nordX, y2: nordY + 8.8, width: 0.25 });
+        const titre = valeurOuVide(infos.titre) || '............';
+        const lot = valeurOuVide(infos.lot);
+        textePage(105, 20, 'PLAN POUR AUTORISATION DE CONSTRUIRE', 3.2, 'bold', 'middle');
+        textePage(105, 26, lot ? `T.F ${titre}, Lot n° ${lot}` : `T.F ${titre}`, 2.9, 'bold', 'middle');
+        if (!lot) textePage(105, 31.5, 'Solde dudit T.F', 2.9, 'bold', 'middle');
+        textePage(105, lot ? 32 : 37.5, `Superficie = ${formaterSuperficieCompacte(superficieM2)}`, 2.7, 'bold', 'middle');
+        ajouter({ type: 'rect', x: 150, y: 8, w: 48, h: 30, width: 0.3 });
+        [
+            ['Région', infos.region],
+            ['Département', infos.departement],
+            ['Arrondissement', infos.arrondissement],
+            ['Commune', infos.commune],
+        ].forEach(([libelle, valeur], index) => {
+            textePage(152, 13 + index * 6, `${libelle} : ${court(valeur, 12)}`, 2, 'normal', 'start');
+        });
+        textePage(198, 44, `NICAD : ${formaterNicad(infos.nicad) || '............'}`, 2.8, 'bold', 'end');
+        autour.forEach((parcelle) => {
+            parcelle.points.forEach((point, index) => {
+                const suivant = parcelle.points[(index + 1) % parcelle.points.length];
+                ligne(page(point), page(suivant), 0.25);
+            });
+        });
+        const sujetPage = rognerPolygone(sujetLocal.map(page), cadre);
+        if (sujetPage.length >= 3) {
+            ajouter({
+                type: 'polygon',
+                points: sujetPage,
+                fill: [255, 255, 255],
+                stroke: [0, 0, 0],
+                width: 1,
+            });
+        }
+        autour.forEach((parcelle) => {
+            const gravite = centreGravite(parcelle.points);
+            if (!contient(gravite, parcelle.points) || contient(gravite, sujetLocal)) return;
+            const [x, y] = page(gravite);
+            texteCadre(x, y, parcelle.lot, 2.1, 'bold');
+        });
+        const coinsCarte = coinsDuPolygone(sujetLocal);
+        const cotesCarte = analyserCotes(coinsCarte, autour.filter((parcelle) => parcelle.touche), autour, []);
+        cotesCarte.forEach((cote) => {
+            const mesure = page({
+                x: cote.milieu.x - cote.nx * 2.2,
+                y: cote.milieu.y - cote.ny * 2.2,
+            });
+            if (dansRectangle(mesure, cadre, 1)) {
+                textePage(mesure[0], mesure[1], longueurMetres(cote.a, cote.b).toFixed(2), 1.8, 'normal', 'middle', angleLisible(page(cote.a), page(cote.b)));
+            }
+            if (!cote.rue) return;
+            const ecart = cote.face?.ecart;
+            const place = page({
+                x: cote.milieu.x + cote.nx * (ecart ? ecart / 2 : 6),
+                y: cote.milieu.y + cote.ny * (ecart ? ecart / 2 : 6),
+            });
+            if (!dansRectangle(place, cadre, 1)) return;
+            textePage(place[0], place[1], nomRue(ecart).toUpperCase(), 2, 'normal', 'middle', angleLisible(page(cote.a), page(cote.b)));
+        });
+        textePage(16, 286, `Echelle = 1/${echelleRetenueCarte}`, 2.6, 'bold', 'start');
+        ajouter({ type: 'rect', x: cadre.x, y: cadre.y, w: cadre.w, h: cadre.h, width: 0.35 });
+        return commandes;
+    }
 
     if (situation) {
         textePage(105, 12, 'PLAN DE SITUATION', 5, 'bold', 'middle');

@@ -87,11 +87,13 @@ const planChoisi = ref('extrait');
 const echelleSituationChoisie = ref(2000);
 const echelleParcelleChoisie = ref(500);
 const echelleUniqueChoisie = ref(1000);
+const coordonneesChoisies = ref(false);
 const plansDisponibles = [
     { id: 'extrait', label: 'Extrait de plan' },
     { id: 'cic', label: 'Plan pour CIC' },
     { id: 'situation', label: 'Plan de situation' },
     { id: 'morcellement', label: 'Plan de morcellement' },
+    { id: 'autorisation', label: 'Plan pour autorisation de construire' },
 ];
 const bureauExtrait = { nom: 'Ngor Almadies', ville: 'Ngor Almadies' };
 const showInfo = ref(false);
@@ -1533,6 +1535,7 @@ async function ouvrirExtraitPlan() {
     echelleSituationChoisie.value = 2000;
     echelleParcelleChoisie.value = 500;
     echelleUniqueChoisie.value = 1000;
+    coordonneesChoisies.value = false;
     choixEchelleOuvert.value = true;
 }
 
@@ -1560,7 +1563,11 @@ async function validerEchelles() {
         const echelleParcelle = deuxEchelles
             ? (Number(echelleParcelleChoisie.value) || 500)
             : (Number(echelleUniqueChoisie.value) || 1000);
-        const cadreCarte = plan === 'situation' ? { w: 186, h: 196 } : { w: 186, h: 230 };
+        const cadreCarte = plan === 'situation'
+            ? { w: 186, h: 196 }
+            : plan === 'autorisation'
+                ? { w: 186, h: 226 }
+                : { w: 186, h: 230 };
         const voisins = await parcellesAutour(
             polygone,
             echelleSituation,
@@ -1595,6 +1602,7 @@ async function validerEchelles() {
             },
             variante: plan === 'morcellement' ? 'morcellement' : 'extrait',
             signataire: props.signataireExtrait,
+            coordonnees: coordonneesChoisies.value,
         }) : commandesCarte({
             type: plan,
             bureau: bureauExtrait.nom,
@@ -3337,6 +3345,10 @@ onBeforeUnmount(() => {
                         </label>
                     </div>
                 </fieldset>
+                <label v-if="planChoisi === 'extrait'" class="mt-5 flex items-center gap-2 text-sm text-primary-txt">
+                    <input v-model="coordonneesChoisies" type="checkbox" class="text-primary">
+                    Afficher les coordonnées des bornes
+                </label>
                 <fieldset v-if="planChoisi === 'extrait' || planChoisi === 'morcellement'" class="mt-5">
                     <legend class="text-sm font-semibold text-primary-txt">Échelle pour plan de situation</legend>
                     <div class="mt-2 space-y-2">
