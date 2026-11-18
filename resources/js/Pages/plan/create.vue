@@ -265,6 +265,21 @@ function zoomToParcelle(layer) {
 const UTM28N = '+proj=utm +zone=28 +datum=WGS84 +units=m +no_defs';
 const WGS84 = '+proj=longlat +datum=WGS84 +no_defs';
 const CODE_COMMUNE_NGOR = '01130132';
+const LIEU_NGOR = {
+    region: 'Dakar',
+    departement: 'Dakar',
+    arrondissement: 'Almadies',
+    commune: 'Ngor',
+};
+
+function lieuDuPlan(terrain) {
+    return {
+        region: terrain?.region || LIEU_NGOR.region,
+        departement: terrain?.departement || LIEU_NGOR.departement,
+        arrondissement: terrain?.arrondissement || LIEU_NGOR.arrondissement,
+        commune: terrain?.commune || LIEU_NGOR.commune,
+    };
+}
 
 function gpsToUtm(latitude, longitude) {
     const [x, y] = proj4(WGS84, UTM28N, [longitude, latitude]);
@@ -973,6 +988,11 @@ async function chargerShapefiles() {
     });
 
     const manquants = visibles.filter((shp) => !couchesShapefile.has(shp.id));
+    if (manquants.some((shp) => shp.type_entite === 'numero_lot')) {
+        const couchesNumero = shapefiles.value.filter((shp) => shp.type_entite === 'numero_parcelle');
+        await Promise.all(couchesNumero.map((shp) => lireGeojsonShapefile(shp).catch(() => null)));
+        clesNumeroParcelle = null;
+    }
     await Promise.all(manquants.map(async (shp) => {
         try {
             const brut = await lireGeojsonShapefile(shp);
@@ -995,16 +1015,45 @@ async function chargerShapefiles() {
     }));
 }
 
+let clesNumeroParcelle = null;
+
+function clePointPlan(lon, lat) {
+    return `${Number(lon).toFixed(7)}|${Number(lat).toFixed(7)}`;
+}
+
+function clesDesNumerosParcelle() {
+    if (clesNumeroParcelle) return clesNumeroParcelle;
+    const cles = new Set();
+    shapefiles.value.forEach((shp) => {
+        if (shp.type_entite !== 'numero_parcelle') return;
+        const data = shapefileCache.get(shp.id);
+        (data?.features || []).forEach((feature) => {
+            const coords = feature?.geometry?.coordinates;
+            if (!Array.isArray(coords) || coords.length < 2) return;
+            cles.add(clePointPlan(coords[0], coords[1]));
+        });
+    });
+    clesNumeroParcelle = cles;
+    return cles;
+}
+
+function lotPoseSurParcelle(feature) {
+    const coords = feature?.geometry?.coordinates;
+    if (!Array.isArray(coords) || coords.length < 2) return false;
+    return clesDesNumerosParcelle().has(clePointPlan(coords[0], coords[1]));
+}
+
 function marqueurEntite(feature, latlng, shp, enAvant, textes) {
     if (estNumeroPlan(shp)) {
         const texte = libelleNumeroPlan(shp, feature);
         if (!texte) return L.circleMarker(latlng, { radius: 1, opacity: 0, fillOpacity: 0 });
+        const lotAuDessus = shp.type_entite === 'numero_lot' && lotPoseSurParcelle(feature);
         return L.marker(latlng, {
             icon: L.divIcon({
                 className: 'shp-chiffre',
                 html: `<span>${escapeHtml(texte)}</span>`,
                 iconSize: [52, 14],
-                iconAnchor: [26, 7],
+                iconAnchor: lotAuDessus ? [26, 23] : [26, 7],
             }),
         });
     }
@@ -1660,6 +1709,7 @@ async function enregistrerShapefile(messageSucces, verification = null) {
         const { data } = await axios.get('/shapefiles');
         shapefiles.value = data;
         shapefileCache.clear();
+        clesNumeroParcelle = null;
         await chargerShapefiles();
 
         activeTab.value = 'list';
@@ -1890,7 +1940,22 @@ async function identifierGeometrie(feature, type) {
         nomSection: section ? coucheAttribut(section) : '',
         suffixe: numeroSection && numeroParcelle ? `${numeroSection}${numeroParcelle}` : '',
         sectionFeature: section,
+        parcelleFeature: polygone,
         numerosParcelle };
+}
+
+function nicadDuPlan(proprietes) {
+    const chiffres = String(proprietes?.NICAD ?? '').replace(/\D/g, '');
+    return chiffres.length >= 16 ? chiffres.slice(0, 16) : '';
+}
+
+function surfaceDuPlan(proprietes) {
+    const valeur = Number(String(proprietes?.SupReelle ?? '').replace(',', '.'));
+    return Number.isFinite(valeur) && valeur > 0 ? String(Math.round(valeur)) : '';
+}
+
+function texteDuPlan(proprietes, cle) {
+    return String(proprietes?.[cle] ?? '').trim();
 }
 
 async function identifierSelection(shp, feature, jeton) {
@@ -1908,9 +1973,21 @@ async function identifierSelection(shp, feature, jeton) {
         }
         if (jeton !== jetonSelection) return;
         const terrain = base?.terrain;
+        const lieu = lieuDuPlan(terrain);
         const dossier = base?.dossier;
         const sauve = shp?.verification?.type === 'parcelle' ? shp.verification : null;
         const estParcelle = ['limite_parcelle', 'numero_parcelle'].includes(shp?.type_entite) || !!sauve;
+        const dossierTrouve = !!terrain;
+        const proprietes = lecture.parcelleFeature?.properties || {};
+        let lotPlan = '';
+        if (!dossierTrouve && lecture.parcelleFeature) {
+            const [pointsLot, parcelles] = await Promise.all([
+                lireCouches('numero_lot'),
+                lireCouches('limite_parcelle'),
+            ]);
+            if (jeton !== jetonSelection) return;
+            lotPlan = lotDansParcelle(lecture.parcelleFeature, pointsLot, parcelles);
+        }
         selectedInfo.value = {
             ...selectedInfo.value,
             parcelle: lecture.parcelle || sauve?.prochain || selectedInfo.value.parcelle,
@@ -1920,19 +1997,23 @@ async function identifierSelection(shp, feature, jeton) {
             loading: false,
             data: estParcelle ? {
                 txt_num_dossier: dossier?.txt_num_dossier || '',
-                txt_nicad: terrain?.txt_nicad || base?.nicad_calcule || sauve?.nicad || '',
-                nbr_surface: terrain?.nbr_surface || '',
-                txt_num_lotissement: terrain?.txt_num_lotissement || '',
-                txt_lotissement: terrain?.txt_lotissement || lecture.lotissement || sauve?.lotissement || '',
+                txt_nicad: dossierTrouve
+                    ? (terrain.txt_nicad || base?.nicad_calcule || sauve?.nicad || '')
+                    : (nicadDuPlan(proprietes) || base?.nicad_calcule || sauve?.nicad || ''),
+                nbr_surface: dossierTrouve ? (terrain.nbr_surface || '') : surfaceDuPlan(proprietes),
+                txt_num_lotissement: dossierTrouve ? (terrain.txt_num_lotissement || '') : lotPlan,
+                txt_lotissement: dossierTrouve
+                    ? (terrain.txt_lotissement || lecture.lotissement || sauve?.lotissement || '')
+                    : (lecture.lotissement || texteDuPlan(proprietes, 'Lotissemen') || sauve?.lotissement || ''),
                 txt_num_titre: terrain?.txt_num_titre || '',
-                txt_titre_mere: terrain?.txt_titre_mere || '',
-                region: terrain?.region || '',
-                departement: terrain?.departement || '',
-                arrondissement: terrain?.arrondissement || '',
+                txt_titre_mere: dossierTrouve ? (terrain.txt_titre_mere || '') : texteDuPlan(proprietes, 'TitreMere'),
+                region: lieu.region,
+                departement: lieu.departement,
+                arrondissement: lieu.arrondissement,
                 livre_foncier: terrain?.livre_foncier || '',
                 requisition: terrain?.requisition || '',
-                titulaire: terrain?.titulaire || '',
-                commune: terrain?.commune || '',
+                titulaire: dossierTrouve ? (terrain.titulaire || '') : texteDuPlan(proprietes, 'TitulaireD'),
+                commune: lieu.commune,
                 suffixe: lecture.suffixe || base?.suffixe || sauve?.suffixe || '',
                 slt_service_rendu: dossier?.slt_service_rendu || '',
                 txt_etat_cession: dossier?.txt_etat_cession || '',
@@ -2261,6 +2342,7 @@ async function confirmerSuppression(codes) {
             const { data } = await axios.get('/shapefiles');
             shapefiles.value = data;
             shapefileCache.delete(cible.item.id);
+            clesNumeroParcelle = null;
             await chargerShapefiles();
             toast.success('Plan supprimé');
         }
@@ -2422,6 +2504,7 @@ onBeforeUnmount(() => {
         map.value = null;
     }
     shapefileCache.clear();
+    clesNumeroParcelle = null;
     parcelsLayer.value = null;
     selectionHighlightLayer.value = null;
 });
@@ -2886,6 +2969,18 @@ onBeforeUnmount(() => {
                                 <div class="flex items-center justify-between gap-3 py-1.5 border-b border-primary-only/70">
                                     <span class="font-medium text-primary-txt">Titulaire</span>
                                     <span class="font-semibold text-primary-txt text-right">{{ selectedInfo.data.titulaire || '—' }}</span>
+                                </div>
+                                <div class="flex items-center justify-between gap-3 py-1.5 border-b border-primary-only/70">
+                                    <span class="font-medium text-primary-txt">Région</span>
+                                    <span class="font-semibold text-primary-txt text-right">{{ selectedInfo.data.region || '—' }}</span>
+                                </div>
+                                <div class="flex items-center justify-between gap-3 py-1.5 border-b border-primary-only/70">
+                                    <span class="font-medium text-primary-txt">Département</span>
+                                    <span class="font-semibold text-primary-txt text-right">{{ selectedInfo.data.departement || '—' }}</span>
+                                </div>
+                                <div class="flex items-center justify-between gap-3 py-1.5 border-b border-primary-only/70">
+                                    <span class="font-medium text-primary-txt">Arrondissement</span>
+                                    <span class="font-semibold text-primary-txt text-right">{{ selectedInfo.data.arrondissement || '—' }}</span>
                                 </div>
                                 <div class="flex items-center justify-between gap-3 py-1.5 border-b border-primary-only/70">
                                     <span class="font-medium text-primary-txt">Commune</span>
