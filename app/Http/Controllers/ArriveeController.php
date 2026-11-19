@@ -6,6 +6,7 @@ use App\Models\Arrivee;
 use App\Models\Lotissement;
 use App\Rules\LotissementConnu;
 use App\Services\AgentInscritService;
+use App\Services\AttributionDossierService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;  
 use Illuminate\Support\Facades\Storage; 
@@ -70,7 +71,7 @@ class ArriveeController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request, AttributionDossierService $attributions)
     {
         // 1. Validation – on retire 'unique' et on met la règle personnalisée dans le bon endroit
         $validateData = $request->validate([
@@ -146,7 +147,7 @@ class ArriveeController extends Controller
             $validateData['fichierPDF'] = $request->file('fichierPDF')->store('courrierarrivee', 'public');
         }
 
-        Arrivee::create([
+        $arrivee = Arrivee::create([
             'txt_numdordre' => $validateData['txt_numdordre'],  
             'txt_numbordereau' => $validateData['txt_numbordereau'] ?? null,
             'txt_numdossier' => $validateData['txt_numdossier'] ?? null,
@@ -176,6 +177,8 @@ class ArriveeController extends Controller
             'fichierPDF'=> $validateData['fichierPDF'] ?? null,
         ]);
 
+        $attributions->imputerArrivee($arrivee, $validateData['txt_agenttraiteur'], $request->user());
+
         return redirect()->route('arrivee.create')->with('success', 'Courrier arrivée créé avec succès');
   
     }
@@ -197,7 +200,7 @@ class ArriveeController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, string $id, AttributionDossierService $attributions)
     { 
         $arrivee = Arrivee::findOrFail($id); 
 
@@ -313,6 +316,8 @@ class ArriveeController extends Controller
             'txt_observation' => $validateData['txt_observation'] ?? null, 
             'fichierPDF' => $validateData['fichierPDF'] ?? null,
         ]);
+
+        $attributions->imputerArrivee($arrivee, $validateData['txt_agenttraiteur'], $request->user());
 
         return redirect()->route('arrivee.create')
             ->with('success', 'Courrier '.$arrivee->txt_numdordre.' modifié avec succès');

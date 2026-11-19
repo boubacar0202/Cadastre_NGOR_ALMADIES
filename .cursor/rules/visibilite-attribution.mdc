@@ -13,6 +13,8 @@ Une attribution en cours (dossier, courrier arrivée ou courrier départ) est vi
 - Après une réattribution, l'ancien agent ne la voit plus. Le nouvel agent et les administrateurs la voient.
 - Un utilisateur qui n'est ni administrateur ni l'agent attribué ne voit ni la liste ni la fiche.
 - Ne pas retirer l'accès à Secrétariat, Enregistrement Arrivées ou Enregistrement Départs pour appliquer cette règle.
+- Enregistrer ou modifier un courrier d'arrivée dont l'agent correspond à un compte validé crée ou réattribue l'attribution tant qu'elle est à traiter. Un nom sans compte, ou un courrier déjà validé ou signé, ne rouvre pas d'attribution.
+- Le suivi administrateur liste tous les courriers d'arrivée, du plus récent au plus ancien, sans les mettre dans « à traiter ». Les attributions nouvelles restent en tête de « à traiter ». Le départ s'attribue depuis Traitement.
 
 ```vue
 <!-- ❌ Historique sans accès à la fiche -->

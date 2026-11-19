@@ -20,6 +20,10 @@ const props = defineProps({
         default: () => ({ en_cours: 0, en_retard: 0, traites: 0, signes: 0 }),
     },
     mesDossiers: { type: Array, default: () => [] },
+    courriersArrivee: {
+        type: Object,
+        default: () => ({ data: [], current_page: 1, last_page: 1, total: 0, prev_page_url: null, next_page_url: null }),
+    },
 });
 
 const form = useForm({
@@ -351,6 +355,61 @@ const cartes = [
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </section>
+
+                <section class="rounded-xl bg-white p-6 shadow-md">
+                    <h3 class="mb-1 text-lg font-semibold text-primary-txt">Courriers d'arrivée</h3>
+                    <p class="mb-4 text-sm text-primary-txt/80">
+                        Du plus récent au plus ancien. Un courrier attribué à un compte reste en tête des dossiers en cours.
+                        Un nom sans compte reste visible ici, sans devenir un dossier à traiter.
+                    </p>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-primary-txt">
+                            <thead class="bg-primary text-white">
+                                <tr>
+                                    <th class="px-3 py-2">N° d'ordre</th>
+                                    <th class="px-3 py-2">Arrivée</th>
+                                    <th class="px-3 py-2">Agent</th>
+                                    <th class="px-3 py-2">Objet</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="courriersArrivee.data.length === 0">
+                                    <td colspan="4" class="px-3 py-6 text-center">Aucun courrier d'arrivée.</td>
+                                </tr>
+                                <tr v-for="courrier in courriersArrivee.data" :key="courrier.id">
+                                    <td class="border-b px-3 py-3">
+                                        <div class="font-semibold">{{ courrier.numero }}</div>
+                                        <div class="text-xs">{{ courrier.courrier }}</div>
+                                    </td>
+                                    <td class="border-b px-3 py-3">{{ courrier.date }}</td>
+                                    <td class="border-b px-3 py-3">{{ courrier.agent || "—" }}</td>
+                                    <td class="border-b px-3 py-3">{{ courrier.objet || "—" }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 flex items-center justify-between text-sm text-primary-txt">
+                        <Link
+                            v-if="courriersArrivee.prev_page_url"
+                            :href="courriersArrivee.prev_page_url"
+                            preserve-scroll
+                            class="rounded-lg border border-primary/30 px-3 py-1.5 font-semibold"
+                        >
+                            Précédent
+                        </Link>
+                        <span v-else class="rounded-lg px-3 py-1.5 text-primary-txt/40">Précédent</span>
+                        <span>Page {{ courriersArrivee.current_page }} sur {{ courriersArrivee.last_page }}</span>
+                        <Link
+                            v-if="courriersArrivee.next_page_url"
+                            :href="courriersArrivee.next_page_url"
+                            preserve-scroll
+                            class="rounded-lg border border-primary/30 px-3 py-1.5 font-semibold"
+                        >
+                            Suivant
+                        </Link>
+                        <span v-else class="rounded-lg px-3 py-1.5 text-primary-txt/40">Suivant</span>
                     </div>
                 </section>
             </div>

@@ -83,6 +83,43 @@ class AttributionDossierService
         });
     }
 
+    public function imputerArrivee(Arrivee $arrivee, string $nom, User $auteur): void
+    {
+        $agent = $this->agentParNom($nom);
+        if (! $agent) {
+            return;
+        }
+
+        $ouverte = AttributionDossier::query()
+            ->where('origine', 'arrivee')
+            ->where('arrivee_id', $arrivee->id)
+            ->where('statut', AttributionDossier::STATUT_ATTRIBUE)
+            ->first();
+
+        if ($ouverte) {
+            if ((int) $ouverte->user_id !== (int) $agent->id) {
+                $this->reattribuer($ouverte, $agent, $auteur);
+            }
+
+            return;
+        }
+
+        $fermee = AttributionDossier::query()
+            ->where('origine', 'arrivee')
+            ->where('arrivee_id', $arrivee->id)
+            ->whereIn('statut', [
+                AttributionDossier::STATUT_TRAITE,
+                AttributionDossier::STATUT_SIGNE,
+            ])
+            ->exists();
+
+        if ($fermee) {
+            return;
+        }
+
+        $this->attribuer($arrivee, $agent, $auteur);
+    }
+
     public function reattribuer(AttributionDossier $attribution, User $agent, User $admin): AttributionDossier
     {
         return DB::transaction(function () use ($attribution, $agent, $admin) {
@@ -253,7 +290,7 @@ class AttributionDossierService
             ])
             ->where('user_id', $agent->id)
             ->where('statut', AttributionDossier::STATUT_ATTRIBUE)
-            ->orderBy('date_echeance')
+            ->orderByDesc('date_attribution')
             ->get();
 
         $preuves = $this->preuvesPresentes($attributions);
@@ -372,6 +409,36 @@ class AttributionDossierService
                 'traites' => $lignes->where('statut', AttributionDossier::STATUT_TRAITE)->count(),
                 'signes' => $lignes->where('statut', AttributionDossier::STATUT_SIGNE)->count(),
             ],
+            'courriersArrivee' => $this->registreArrivees(),
+        ];
+    }
+
+    public function registreArrivees(): array
+    {
+        $page = Arrivee::query()
+            ->orderByDesc('dt_datearrivee')
+            ->orderByDesc('id')
+            ->paginate(15, ['id', 'txt_numdordre', 'txt_numcourier', 'dt_datearrivee', 'txt_agenttraiteur', 'txt_objet'], 'page_courriers')
+            ->withQueryString();
+
+        return [
+            'data' => $page->getCollection()->map(function (Arrivee $arrivee) {
+                $date = $arrivee->dt_datearrivee;
+
+                return [
+                    'id' => $arrivee->id,
+                    'numero' => $arrivee->txt_numdordre,
+                    'courrier' => $arrivee->txt_numcourier,
+                    'date' => $date ? Carbon::parse($date)->format('d/m/Y') : null,
+                    'agent' => $arrivee->txt_agenttraiteur,
+                    'objet' => $arrivee->txt_objet,
+                ];
+            })->values()->all(),
+            'current_page' => $page->currentPage(),
+            'last_page' => $page->lastPage(),
+            'total' => $page->total(),
+            'prev_page_url' => $page->previousPageUrl(),
+            'next_page_url' => $page->nextPageUrl(),
         ];
     }
 
@@ -675,6 +742,23 @@ class AttributionDossierService
         if (($attribution->origine ?: 'dossier') === 'dossier' && $attribution->dossier_id) {
             Dossier::query()->whereKey($attribution->dossier_id)->update(['txt_agentTraiteur' => $nom]);
         }
+    }
+
+    private function agentParNom(string $nom): ?User
+    {
+        $nom = trim($nom);
+        if ($nom === '') {
+            return null;
+        }
+
+        $agents = User::query()
+            ->where('is_validated', true)
+            ->where('name', '!=', '')
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower($nom)])
+            ->limit(2)
+            ->get();
+
+        return $agents->count() === 1 ? $agents->first() : null;
     }
 
     private function origineDe(Model $cible): string
