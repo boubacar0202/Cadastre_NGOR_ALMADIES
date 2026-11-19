@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Arrivee;
 use App\Models\AttributionDossier;
 use App\Models\Commune;
 use App\Models\User;
@@ -79,6 +80,26 @@ class TraitementDossierController extends Controller
         }
 
         return back()->with('success', 'Dossier réattribué à '.$agent->name.'.');
+    }
+
+    public function imputerArrivee(Request $request, Arrivee $arrivee)
+    {
+        $data = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        try {
+            $agent = $this->agentValide((int) $data['user_id']);
+            $change = $this->attributions->modifierImputationArrivee($arrivee, $agent, $request->user());
+        } catch (ValidationException $exception) {
+            return back()->with('error', collect($exception->errors())->flatten()->first());
+        }
+
+        if (! $change) {
+            return back();
+        }
+
+        return back()->with('success', 'Agent traiteur du courrier n° '.$arrivee->txt_numdordre.' : '.$agent->name.'.');
     }
 
     public function valider(Request $request, AttributionDossier $attribution)

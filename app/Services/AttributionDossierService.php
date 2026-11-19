@@ -120,6 +120,44 @@ class AttributionDossierService
         $this->attribuer($arrivee, $agent, $auteur);
     }
 
+    public function modifierImputationArrivee(Arrivee $arrivee, User $agent, User $auteur): bool
+    {
+        $fermee = AttributionDossier::query()
+            ->where('origine', 'arrivee')
+            ->where('arrivee_id', $arrivee->id)
+            ->whereIn('statut', [
+                AttributionDossier::STATUT_TRAITE,
+                AttributionDossier::STATUT_SIGNE,
+            ])
+            ->exists();
+
+        if ($fermee) {
+            throw ValidationException::withMessages([
+                'user_id' => 'L’agent traiteur d’un courrier déjà traité ou signé ne se modifie pas depuis ce registre.',
+            ]);
+        }
+
+        $ouverte = AttributionDossier::query()
+            ->where('origine', 'arrivee')
+            ->where('arrivee_id', $arrivee->id)
+            ->where('statut', AttributionDossier::STATUT_ATTRIBUE)
+            ->first();
+
+        if ($ouverte && (int) $ouverte->user_id === (int) $agent->id) {
+            return false;
+        }
+
+        if ($ouverte) {
+            $this->reattribuer($ouverte, $agent, $auteur);
+
+            return true;
+        }
+
+        $this->attribuer($arrivee, $agent, $auteur);
+
+        return true;
+    }
+
     public function reattribuer(AttributionDossier $attribution, User $agent, User $admin): AttributionDossier
     {
         return DB::transaction(function () use ($attribution, $agent, $admin) {
@@ -350,28 +388,9 @@ class AttributionDossierService
     {
         $attributions = AttributionDossier::query()
             ->with([
-                'dossier' => function ($query) {
-                    $query->select('id', 'txt_num_dossier', 'txt_num_dordre', 'slt_service_rendu')
-                        ->with([
-                            'terrains' => function ($terrains) {
-                                $terrains->select(
-                                    'id',
-                                    'txt_num_dossier',
-                                    'txt_nicad',
-                                    'txt_num_titre',
-                                    'txt_lotissement',
-                                    'txt_HorsLotissement',
-                                    'slt_commune',
-                                    'titulaire_id',
-                                )->orderBy('id')->with([
-                                    'commune:id,slt_commune',
-                                    'titulaire:id,slt_titulaire,txt_prenom,txt_nom,txt_denominationPM',
-                                ]);
-                            },
-                        ]);
-                },
-                'arrivee:id,txt_numdordre,txt_numdossier,txt_typecourrier,txt_numcourier,txt_NICAD,txt_numTitreFoncier,txt_prenomNom,txt_objet,txt_lotissement',
-                'depart:id,txt_numdordrecd,txt_numdossiercd,txt_typecourriercd,txt_referencecd,txt_NICADcd,txt_numTitreFonciercd,txt_prenomNomcd,txt_objetcd,txt_lotissementcd',
+                'dossier:id,txt_num_dossier,txt_num_dordre,slt_service_rendu',
+                'arrivee:id,txt_numdordre,txt_numdossier,txt_typecourrier,txt_numcourier',
+                'depart:id,txt_numdordrecd,txt_numdossiercd,txt_typecourriercd,txt_referencecd',
                 'agent:id,name',
                 'signataire:id,name',
             ])
@@ -440,8 +459,19 @@ class AttributionDossierService
             ->paginate(15, ['id', 'txt_numdordre', 'txt_numcourier', 'dt_datearrivee', 'txt_agenttraiteur', 'txt_objet'], 'page_courriers')
             ->withQueryString();
 
+        $fermes = AttributionDossier::query()
+            ->where('origine', 'arrivee')
+            ->whereIn('arrivee_id', $page->getCollection()->pluck('id'))
+            ->whereIn('statut', [
+                AttributionDossier::STATUT_TRAITE,
+                AttributionDossier::STATUT_SIGNE,
+            ])
+            ->pluck('arrivee_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
         return [
-            'data' => $page->getCollection()->map(function (Arrivee $arrivee) {
+            'data' => $page->getCollection()->map(function (Arrivee $arrivee) use ($fermes) {
                 $date = $arrivee->dt_datearrivee;
 
                 return [
@@ -451,6 +481,7 @@ class AttributionDossierService
                     'date' => $date ? Carbon::parse($date)->format('d/m/Y') : null,
                     'agent' => $arrivee->txt_agenttraiteur,
                     'objet' => $arrivee->txt_objet,
+                    'modifiable' => ! in_array((int) $arrivee->id, $fermes, true),
                 ];
             })->values()->all(),
             'current_page' => $page->currentPage(),
@@ -907,7 +938,6 @@ class AttributionDossierService
             'numero' => $presentation['numero'],
             'detail' => $presentation['detail'],
             'service' => $presentation['service'],
-            'identite' => $this->identiteListe($attribution),
             'preuve_absente' => $presentation['preuve_absente'],
             'agent' => $attribution->agent?->name,
             'agent_id' => $attribution->user_id,
@@ -1063,8 +1093,7 @@ class AttributionDossierService
                     'Lotissement' => $arrivee->txt_lotissement,
                     'N° lot' => $arrivee->txt_numLot,
                     'Superficie' => $arrivee->txt_superficie,
-                    'NICAD' => $arrivee->txt_NICAD,
-                    'N° TF' => $arrivee->txt_numTitreFoncier,
+                    'N° TF' => $arrivee->txt_numTF,
                     'Date' => $this->dateLisible($arrivee->dt_date),
                     'Heure' => $arrivee->txt_heure,
                     'Lieu' => $arrivee->txt_lieu,
@@ -1141,57 +1170,6 @@ class AttributionDossierService
         } catch (\Throwable) {
             return (string) $valeur;
         }
-    }
-
-    private function identiteListe(AttributionDossier $attribution): array
-    {
-        $champs = match ($attribution->origine ?: 'dossier') {
-            'arrivee' => [
-                'NICAD' => $attribution->arrivee?->txt_NICAD,
-                'Requérant' => $attribution->arrivee?->txt_prenomNom,
-            ],
-            'depart' => [
-                'NICAD' => $attribution->depart?->txt_NICADcd,
-                'Concerné' => $attribution->depart?->txt_prenomNomcd,
-            ],
-            default => $this->identiteDossier($attribution->dossier),
-        };
-
-        $lignes = [];
-        foreach ($champs as $label => $valeur) {
-            $texte = trim((string) $valeur);
-            if ($texte === '') {
-                continue;
-            }
-            $lignes[] = ['label' => $label, 'valeur' => $texte];
-        }
-
-        return $lignes;
-    }
-
-    private function identiteDossier(?Dossier $dossier): array
-    {
-        $vide = [
-            'NICAD' => null,
-            'Titulaire' => null,
-        ];
-
-        $terrain = $dossier?->terrains?->first();
-        if (! $terrain) {
-            return $vide;
-        }
-
-        $titulaire = $terrain->titulaire;
-        $nom = trim(implode(' ', array_filter([
-            $titulaire?->txt_prenom,
-            $titulaire?->txt_nom,
-            $titulaire?->txt_denominationPM,
-        ])));
-
-        return [
-            'NICAD' => $terrain->txt_nicad,
-            'Titulaire' => trim(($titulaire?->slt_titulaire ? $titulaire->slt_titulaire.' — ' : '').$nom),
-        ];
     }
 
     private function presentation(AttributionDossier $attribution): array

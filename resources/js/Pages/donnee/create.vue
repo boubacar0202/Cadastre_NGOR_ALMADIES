@@ -61,7 +61,8 @@ const selectedTerrain = ref(null);
 const loadingDelete = ref(false);
 const deleteCode = ref(''); 
 const adminCode = ref('');
-const exporting = ref(false);  
+const exporting = ref(false);
+const ficheOuverte = ref(null);  
 
 // Debounced search
 const debouncedSearch = debounce((page = 1) => {
@@ -379,6 +380,65 @@ function telephoneRepresentant(titulaire) {
     return String(titulaire.tel_telRepresentant || '').trim();
 }
 
+function basculerFiche(id) {
+    ficheOuverte.value = ficheOuverte.value === id ? null : id;
+}
+
+function nomTitulaire(terrain) {
+    return texte(terrain.titulaire?.txt_prenom, terrain.titulaire?.txt_denominationPM, terrain.titulaire?.txt_nom)
+        || terrain.titulaire?.slt_titulaire
+        || '';
+}
+
+function detailsTerrain(terrain) {
+    return [
+        ['Région', terrain.region?.slt_region],
+        ['Département', terrain.departement?.slt_departement],
+        ['Arrondissement', terrain.arrondissement?.slt_arrondissement],
+        ['Commune', terrain.commune?.slt_commune],
+        ['Service rendu', terrain.dossier?.slt_service_rendu],
+        ['État cession', terrain.dossier?.txt_etat_cession],
+        ['Cession définitive', terrain.dossier?.txt_cession_definitive],
+        ['Date création', formatDate(terrain.dossier?.dt_date_creation)],
+        ['N° parcelle', terrain.txt_num_parcelle],
+        ['Lotissement', terrain.txt_lotissement],
+        ['Hors lotissement', terrain.txt_HorsLotissement],
+        ['N° lotissement', terrain.txt_num_lotissement],
+        ['N° section', terrain.txt_num_section],
+        ['Appartement', terrain.txt_appartement],
+        ['Surface', terrain.nbr_surface],
+        ['Doc admin', terrain.slt_document_admin],
+        ['N° délibération', terrain.txt_num_deliberation],
+        ['Date délibération', formatDate(terrain.dt_date_deliberation)],
+        ['Statut NICAD', terrain.slt_statut_nicad],
+        ['Motif annulation NICAD', terrain.slt_motif_annulation_nicad],
+        ['Signalement', texte(terrain.slt_signalement, terrain.slt_designationSignalement)],
+        ['Immatriculation', terrain.references_cadastrales?.rd_immatriculation_terrain],
+        ['Dépendant du domaine', terrain.references_cadastrales?.slt_dependant_domaine],
+        ['Ussu bornage', terrain.references_cadastrales?.ussu_bornage],
+        ['Titre mère', terrain.txt_titre_mere],
+        ['Livre foncier', terrain.references_cadastrales?.slt_lf],
+        ['N° réquisition', terrain.references_cadastrales?.txt_num_requisition],
+        ['Surface bornage', terrain.references_cadastrales?.txt_surface_bornage],
+        ['Date bornage', formatDate(terrain.references_cadastrales?.dt_date_bornage)],
+        ['Nom géomètre', terrain.references_cadastrales?.txt_nom_geometre],
+        ['Type de titulaire', terrain.titulaire?.slt_titulaire],
+        ['Nationalité', terrain.titulaire?.txt_nationalite],
+        ['Civilité', terrain.titulaire?.slt_civilite],
+        ['Pièce', terrain.titulaire?.slt_piece],
+        ['N° pièce', terrain.titulaire?.txt_numPiece],
+        ['Date délivrance', formatDate(terrain.titulaire?.dt_date_delivrance)],
+        ['Date naissance', formatDate(terrain.titulaire?.dt_date_naissance)],
+        ['Lieu naissance', terrain.titulaire?.txt_lieu_naissance],
+        ['Adresse', terrain.titulaire?.txt_adresse],
+        ['Téléphone', terrain.titulaire?.tel_telephone],
+        ['Email', terrain.titulaire?.eml_email],
+        ['Représentant', representantTitulaire(terrain.titulaire)],
+        ['Tél. représentant', telephoneRepresentant(terrain.titulaire)],
+        ['Date évaluation', formatDate(terrain.evaluations_terrains?.dt_dateEvaluation)],
+    ];
+}
+
 </script>
 
 <template>
@@ -456,7 +516,55 @@ function telephoneRepresentant(titulaire) {
 
                         <!-- Tableau -->
                         <div class="p-4">
-                            <div class="max-h-[600px] overflow-x-auto shadow-md rounded-xl">
+                            <div class="space-y-3 md:hidden">
+                                <article
+                                    v-for="terrain in terrains.data"
+                                    :key="`fiche-${terrain.id}`"
+                                    class="rounded-xl border border-primary-only bg-white p-3 shadow-sm"
+                                >
+                                    <button
+                                        type="button"
+                                        class="w-full text-left"
+                                        :aria-expanded="ficheOuverte === terrain.id"
+                                        @click="basculerFiche(terrain.id)"
+                                    >
+                                        <div class="flex items-start justify-between gap-3">
+                                            <p class="font-mono text-sm font-bold" :class="getCellClass(terrain)">{{ terrain.dossier?.txt_num_dossier || '—' }}</p>
+                                            <span :class="getNicadBadgeClass(terrain)">{{ terrain.txt_nicad || 'NON' }}</span>
+                                        </div>
+                                        <p class="mt-1 text-sm font-semibold text-primary-txt">{{ nomTitulaire(terrain) || '—' }}</p>
+                                        <p class="mt-1 font-mono text-xs text-primary-txt">N° titre {{ terrain.txt_num_titre || '—' }}</p>
+                                    </button>
+                                    <div v-if="ficheOuverte === terrain.id" class="mt-3 border-t border-primary-only pt-3">
+                                        <dl class="space-y-2">
+                                            <div v-for="detail in detailsTerrain(terrain)" :key="detail[0]" class="grid grid-cols-[8.5rem_1fr] gap-2 text-sm">
+                                                <dt class="text-primary-txt/70">{{ detail[0] }}</dt>
+                                                <dd class="break-words font-medium text-primary-txt">{{ detail[1] || '—' }}</dd>
+                                            </div>
+                                        </dl>
+                                        <div class="mt-3 flex items-center justify-between gap-3">
+                                            <a
+                                                v-if="terrain.titulaire?.fichierPDF"
+                                                :href="`/storage/${terrain.titulaire.fichierPDF}`"
+                                                target="_blank"
+                                                class="inline-flex items-center gap-2 text-sm font-semibold text-primary underline"
+                                            >
+                                                <img src="/iconePDF.png" alt="" class="h-8 w-8">
+                                                PDF
+                                            </a>
+                                            <span v-else class="text-sm italic text-primary-txt/60">Aucun PDF</span>
+                                            <div class="flex gap-2">
+                                                <BoutonModifier :href="`/secretariat/edit/${terrain.id}`" />
+                                                <BoutonSupprimer :disabled="loadingDelete" @click="supprimerTerrain(terrain)" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </article>
+                                <p v-if="!terrains.data?.length" class="rounded-xl bg-white py-12 text-center text-base text-primary-txt">
+                                    Aucun terrain trouvé
+                                </p>
+                            </div>
+                            <div class="hidden max-h-[600px] overflow-x-auto shadow-md rounded-xl md:block">
                                 <table class="table table-auto w-full text-base text-left text-primary-txt">
                                     <thead 
                                         class="sticky top-0 z-10 text-primary-txt text-font-bold text-center uppercase bg-primary-only dark:bg-gray-700 dark:text-primary-txt whitespace-nowrap bg-primary-only"

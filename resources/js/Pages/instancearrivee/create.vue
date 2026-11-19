@@ -45,6 +45,7 @@ const filters = ref({
 
 const rowRefs = ref({});
 const cibleConvocation = ref(null);
+const ficheOuverte = ref(null);
 
 const uniqueDesignations = computed(() => props.designations || []);
 
@@ -80,6 +81,42 @@ const pagination = computed(() => {
         links,
         meta: { current_page: current, per_page: perPage } };
 });
+
+function memoriserLigne(cle, element) {
+    if (!element) return;
+    if (element.offsetParent === null && rowRefs.value[cle]) return;
+    rowRefs.value[cle] = element;
+}
+
+function basculerFiche(id) {
+    ficheOuverte.value = ficheOuverte.value === id ? null : id;
+}
+
+function detailsArrivee(arrivee) {
+    return [
+        ['Type de courrier', arrivee.txt_typecourrier],
+        ['N° BE', arrivee.txt_numbordereau],
+        ['Catégorie', arrivee.txt_categorie],
+        ['N° courrier', arrivee.txt_numcourier],
+        ['Date courrier', formatDate(arrivee.dt_datecourier)],
+        ['Référence', arrivee.txt_reference],
+        ['Caractère', arrivee.txt_caractere],
+        ['Désignation', arrivee.txt_designation],
+        ['N° lot', arrivee.txt_numLot],
+        ['Superficie', arrivee.txt_superficie],
+        ['Titre foncier', arrivee.txt_numTitreFoncier],
+        ['N° titre mère', arrivee.txt_numTitreMere],
+        ['Lotissement', arrivee.txt_lotissement],
+        ['Date', formatDate(arrivee.dt_date)],
+        ['Heure', arrivee.txt_heure],
+        ['Lieu', arrivee.txt_lieu],
+        ['Nombre de pièces', arrivee.txt_nombrepiece],
+        ['Objet', arrivee.txt_objet],
+        ['Expéditeur', arrivee.txt_expediteur],
+        ['Agent traiteur', arrivee.txt_agenttraiteur],
+        ['Observation', arrivee.txt_observation],
+    ];
+}
 
 const mettreEnEvidence = async (txtNumdordre) => {
     await nextTick();
@@ -262,7 +299,57 @@ const formatDateDMY = (dateStr) => {
                             </div>
  
                             <div class="p-4">
-                                <div class="max-h-[600px] overflow-x-auto shadow-md rounded-xl">
+                                <div class="space-y-3 md:hidden">
+                                    <article
+                                        v-for="arrivee in paginatedArrivees"
+                                        :key="`fiche-${arrivee.id}`"
+                                        :ref="el => memoriserLigne(arrivee.txt_numdordre, el)"
+                                        class="rounded-xl border border-primary-only bg-white p-3 shadow-sm"
+                                        :class="arrivee.isLateConvocation ? 'ring-2 ring-primary' : ''"
+                                    >
+                                        <button
+                                            type="button"
+                                            class="w-full text-left"
+                                            :aria-expanded="ficheOuverte === arrivee.id"
+                                            @click="basculerFiche(arrivee.id)"
+                                        >
+                                            <div class="flex items-start justify-between gap-3">
+                                                <p class="font-mono text-sm font-bold text-primary-txt">{{ arrivee.txt_numdordre || '—' }}</p>
+                                                <p class="shrink-0 text-xs font-semibold text-primary">{{ formatDate(arrivee.dt_datearrivee) || '—' }}</p>
+                                            </div>
+                                            <p class="mt-1 text-sm font-semibold text-primary-txt">{{ arrivee.txt_prenomNom || '—' }}</p>
+                                            <p class="mt-1 font-mono text-xs text-primary-txt">N° dossier {{ arrivee.txt_numdossier || '—' }}</p>
+                                        </button>
+                                        <div v-if="ficheOuverte === arrivee.id" class="mt-3 border-t border-primary-only pt-3">
+                                            <dl class="space-y-2">
+                                                <div v-for="detail in detailsArrivee(arrivee)" :key="detail[0]" class="grid grid-cols-[8.5rem_1fr] gap-2 text-sm">
+                                                    <dt class="text-primary-txt/70">{{ detail[0] }}</dt>
+                                                    <dd class="font-medium text-primary-txt break-words">{{ detail[1] || '—' }}</dd>
+                                                </div>
+                                            </dl>
+                                            <div class="mt-3 flex items-center justify-between gap-3">
+                                                <a
+                                                    v-if="arrivee.fichierPDF"
+                                                    :href="`/storage/${arrivee.fichierPDF}`"
+                                                    target="_blank"
+                                                    class="inline-flex items-center gap-2 text-sm font-semibold text-primary underline"
+                                                >
+                                                    <img src="/iconePDF.png" alt="" class="h-8 w-8">
+                                                    PDF
+                                                </a>
+                                                <span v-else class="text-sm italic text-primary-txt/60">Aucun PDF</span>
+                                                <div class="flex gap-2">
+                                                    <BoutonModifier :href="route('arrivee.edit', arrivee.id)" />
+                                                    <BoutonSupprimer @click="() => supprimerCourrierArrivee(arrivee)" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </article>
+                                    <p v-if="!filtereArrivees?.length" class="rounded-xl bg-white py-12 text-center text-base text-primary-txt">
+                                        Aucun courrier arrivée trouvé
+                                    </p>
+                                </div>
+                                <div class="hidden max-h-[600px] overflow-x-auto shadow-md rounded-xl md:block">
                                     <table class="table table-auto w-full text-base text-left text-primary-txt">
                                         <thead class="sticky top-0 z-10 text-primary-txt text-font-bold text-center uppercase bg-primary-form bg-gray-50 dark:bg-gray-700 dark:text-primary-txt whitespace-nowrap bg-primary-only">
                                             <tr class="h-10">
@@ -300,7 +387,7 @@ const formatDateDMY = (dateStr) => {
                                             <tr
                                                 v-for="(arrivee, index) in paginatedArrivees"
                                                 :key="arrivee.id"
-                                                :ref="el => (rowRefs[arrivee.txt_numdordre] = el)"
+                                                :ref="el => memoriserLigne(arrivee.txt_numdordre, el)"
                                                 class="h-8 text-xs hover:bg-primary hover:text-primary font-semibold text-primary-txt text-center"
                                             >
                                                 <td class="sticky left-0 z-8 text-xs border bg-white px-2 py-1 whitespace-nowrap">{{ ((pagination.meta?.current_page || 1) - 1) * (pagination.meta?.per_page || 15) + index + 1 }}</td>

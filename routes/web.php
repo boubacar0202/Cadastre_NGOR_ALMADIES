@@ -198,6 +198,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/traitement-dossier', [TraitementDossierController::class, 'index'])->name('traitementDossier.index');
         Route::post('/traitement-dossier', [TraitementDossierController::class, 'store'])->name('traitementDossier.store');
         Route::put('/traitement-dossier/{attribution}/reattribuer', [TraitementDossierController::class, 'reattribuer'])->name('traitementDossier.reattribuer');
+        Route::put('/traitement-dossier/arrivee/{arrivee}/imputer', [TraitementDossierController::class, 'imputerArrivee'])->name('traitementDossier.imputerArrivee');
         Route::post('/traitement-dossier/{attribution}/signer', [TraitementDossierController::class, 'signer'])->name('traitementDossier.signer');
         Route::post('/traitement-dossier/{attribution}/annuler-signature', [TraitementDossierController::class, 'annulerSignature'])->name('traitementDossier.annulerSignature');
     });

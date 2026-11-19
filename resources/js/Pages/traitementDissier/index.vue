@@ -69,6 +69,21 @@ function reattribuer(id) {
     });
 }
 
+const imputations = reactive({});
+
+function imputerCourrier(courrier) {
+    const cle = `courrier-${courrier.id}`;
+    envoi[cle] = true;
+    router.put(route("traitementDossier.imputerArrivee", courrier.id), {
+        user_id: imputations[courrier.id],
+    }, {
+        preserveScroll: true,
+        onFinish: () => {
+            envoi[cle] = false;
+        },
+    });
+}
+
 function signer(id) {
     envoi[id] = true;
     router.post(route("traitementDossier.signer", id), {}, {
@@ -211,10 +226,7 @@ const cartes = [
                                     <td class="border-b px-3 py-3">
                                         <div class="text-xs uppercase tracking-wide">{{ ligne.origine_libelle }}</div>
                                         <div class="font-semibold">{{ ligne.numero }}</div>
-                                        <div v-for="info in ligne.identite" :key="info.label" class="text-xs">
-                                            <span class="text-primary-txt/70">{{ info.label }}</span>
-                                            {{ info.valeur }}
-                                        </div>
+                                        <div class="text-xs">{{ ligne.detail || ligne.service || "—" }}</div>
                                     </td>
                                     <td class="border-b px-3 py-3">
                                         {{ ligne.agent }}
@@ -278,10 +290,6 @@ const cartes = [
                                     <td class="border-b px-3 py-3">
                                         <div class="text-xs uppercase tracking-wide">{{ ligne.origine_libelle }}</div>
                                         <div class="font-semibold">{{ ligne.numero }}</div>
-                                        <div v-for="info in ligne.identite" :key="info.label" class="text-xs">
-                                            <span class="text-primary-txt/70">{{ info.label }}</span>
-                                            {{ info.valeur }}
-                                        </div>
                                     </td>
                                     <td class="border-b px-3 py-3">
                                         {{ ligne.agent }}
@@ -334,10 +342,6 @@ const cartes = [
                                     <td class="border-b px-3 py-3">
                                         <div class="text-xs uppercase tracking-wide">{{ ligne.origine_libelle }}</div>
                                         <div class="font-semibold">{{ ligne.numero }}</div>
-                                        <div v-for="info in ligne.identite" :key="info.label" class="text-xs">
-                                            <span class="text-primary-txt/70">{{ info.label }}</span>
-                                            {{ info.valeur }}
-                                        </div>
                                     </td>
                                     <td class="border-b px-3 py-3">
                                         {{ ligne.agent }}
@@ -372,8 +376,9 @@ const cartes = [
                 <section class="rounded-xl bg-white p-6 shadow-md">
                     <h3 class="mb-1 text-lg font-semibold text-primary-txt">Courriers d'arrivée</h3>
                     <p class="mb-4 text-sm text-primary-txt/80">
-                        Du plus récent au plus ancien. Un courrier attribué à un compte reste en tête des dossiers en cours.
-                        Un nom sans compte reste visible ici, sans devenir un dossier à traiter.
+                        Du plus récent au plus ancien. Choisir un compte puis OK remplace l'agent traiteur.
+                        Un courrier déjà traité ou signé garde son agent, sans liste.
+                        Un courrier attribué à un compte reste dans les dossiers en cours.
                     </p>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm text-primary-txt">
@@ -395,7 +400,23 @@ const cartes = [
                                         <div class="text-xs">{{ courrier.courrier }}</div>
                                     </td>
                                     <td class="border-b px-3 py-3">{{ courrier.date }}</td>
-                                    <td class="border-b px-3 py-3">{{ courrier.agent || "—" }}</td>
+                                    <td class="border-b px-3 py-3">
+                                        <div>{{ courrier.agent || "—" }}</div>
+                                        <div v-if="courrier.modifiable" class="mt-2 flex min-w-56 items-center gap-2">
+                                            <select v-model="imputations[courrier.id]" class="w-full rounded-lg border px-2 py-1">
+                                                <option value="">Agent</option>
+                                                <option v-for="agent in agents" :key="agent.value" :value="agent.value">{{ agent.label }}</option>
+                                            </select>
+                                            <button
+                                                type="button"
+                                                class="rounded-lg bg-primary px-3 py-1 text-white disabled:opacity-50"
+                                                :disabled="!imputations[courrier.id] || envoi[`courrier-${courrier.id}`]"
+                                                @click="imputerCourrier(courrier)"
+                                            >
+                                                OK
+                                            </button>
+                                        </div>
+                                    </td>
                                     <td class="border-b px-3 py-3">{{ courrier.objet || "—" }}</td>
                                 </tr>
                             </tbody>
