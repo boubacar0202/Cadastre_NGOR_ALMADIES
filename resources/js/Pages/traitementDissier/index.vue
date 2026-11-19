@@ -2,7 +2,7 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import BaseInput from "@/Components/BaseInput.vue";
 import BaseSelect from "@/Components/BaseSelect.vue";
-import { Head, router, useForm } from "@inertiajs/vue3";
+import { Head, Link, router, useForm } from "@inertiajs/vue3";
 import { reactive } from "vue";
 import { route } from "ziggy-js";
 import DefaultLayout from "@/Layouts/DefaultLayout.vue";
@@ -196,11 +196,12 @@ const cartes = [
                                     <th class="px-3 py-2">Échéance</th>
                                     <th class="px-3 py-2">État</th>
                                     <th class="px-3 py-2">Réattribuer</th>
+                                    <th class="px-3 py-2"></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="enCours.length === 0">
-                                    <td colspan="5" class="px-3 py-6 text-center">Aucun dossier en cours.</td>
+                                    <td colspan="6" class="px-3 py-6 text-center">Aucun dossier en cours.</td>
                                 </tr>
                                 <tr v-for="ligne in enCours" :key="ligne.id" :class="ligne.en_retard ? 'bg-red-50' : 'bg-white'">
                                     <td class="border-b px-3 py-3">
@@ -235,6 +236,14 @@ const cartes = [
                                             </button>
                                         </div>
                                     </td>
+                                    <td class="border-b px-3 py-3 text-right">
+                                        <Link
+                                            :href="route('traitementDossier.show', ligne.id)"
+                                            class="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 px-3 py-1.5 text-sm font-semibold text-primary-txt transition hover:bg-primary hover:text-white"
+                                        >
+                                            Visualiser
+                                        </Link>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -251,11 +260,12 @@ const cartes = [
                                     <th class="px-3 py-2">Agent</th>
                                     <th class="px-3 py-2">Validé le</th>
                                     <th class="px-3 py-2">Signature</th>
+                                    <th class="px-3 py-2"></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="traites.length === 0">
-                                    <td colspan="4" class="px-3 py-6 text-center">Aucun dossier en attente de signature.</td>
+                                    <td colspan="5" class="px-3 py-6 text-center">Aucun dossier en attente de signature.</td>
                                 </tr>
                                 <tr v-for="ligne in traites" :key="ligne.id">
                                     <td class="border-b px-3 py-3">
@@ -277,6 +287,14 @@ const cartes = [
                                             Signer
                                         </button>
                                     </td>
+                                    <td class="border-b px-3 py-3 text-right">
+                                        <Link
+                                            :href="route('traitementDossier.show', ligne.id)"
+                                            class="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 px-3 py-1.5 text-sm font-semibold text-primary-txt transition hover:bg-primary hover:text-white"
+                                        >
+                                            Visualiser
+                                        </Link>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -294,11 +312,12 @@ const cartes = [
                                     <th class="px-3 py-2">Signé le</th>
                                     <th class="px-3 py-2">Chef de bureau</th>
                                     <th class="px-3 py-2">Actions</th>
+                                    <th class="px-3 py-2"></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="signes.length === 0">
-                                    <td colspan="5" class="px-3 py-6 text-center">Aucun dossier signé.</td>
+                                    <td colspan="6" class="px-3 py-6 text-center">Aucun dossier signé.</td>
                                 </tr>
                                 <tr v-for="ligne in signes" :key="ligne.id">
                                     <td class="border-b px-3 py-3">
@@ -320,6 +339,14 @@ const cartes = [
                                         >
                                             Annuler la signature
                                         </button>
+                                    </td>
+                                    <td class="border-b px-3 py-3 text-right">
+                                        <Link
+                                            :href="route('traitementDossier.show', ligne.id)"
+                                            class="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 px-3 py-1.5 text-sm font-semibold text-primary-txt transition hover:bg-primary hover:text-white"
+                                        >
+                                            Visualiser
+                                        </Link>
                                     </td>
                                 </tr>
                             </tbody>

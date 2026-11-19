@@ -10,6 +10,8 @@ import { toast } from "@/Components/AppToast";
 import DeleteModal from "@/Components/DeleteModal.vue";
 import { debounce } from 'lodash'; 
 import { Inertia } from '@inertiajs/inertia';
+import axios from 'axios';
+import * as XLSX from 'xlsx';
 
 const props = defineProps({
     terrains: {
@@ -49,6 +51,8 @@ const filters = ref({
     annee: props.filters.annee || '',
     numero: props.filters.numero || '',
     prenomNom: props.filters.prenomNom || '',
+    NumTitre: props.filters.NumTitre || '',
+    numNICAD: props.filters.numNICAD || '',
     refServiceRendu: props.filters.refServiceRendu || ''
 });
 
@@ -56,7 +60,8 @@ const showDeleteModal = ref(false);
 const selectedTerrain = ref(null);
 const loadingDelete = ref(false);
 const deleteCode = ref(''); 
-const adminCode = ref('');  
+const adminCode = ref('');
+const exporting = ref(false);  
 
 // Debounced search
 const debouncedSearch = debounce((page = 1) => {
@@ -92,7 +97,7 @@ const totalPageActuelle = computed(() => {
 
 // Nombre total filtré (pour l'affichage "sur X enregistrements")
 const totalFiltre = computed(() => {
-    return props.terrains.meta?.total || 0;
+    return props.terrains.meta?.total || props.terrains.total || 0;
 });
 
 
@@ -186,8 +191,112 @@ const resetFilters = () => {
         annee: '',
         numero: '',
         prenomNom: '',
+        NumTitre: '',
+        numNICAD: '',
         refServiceRendu: ''
     };
+};
+
+const texte = (...valeurs) => valeurs
+    .map((valeur) => String(valeur ?? '').trim())
+    .filter(Boolean)
+    .join(' ');
+
+const rowsToExport = (rows) => rows.map((terrain, index) => ({
+    'N°': index + 1,
+    'N° dossier': terrain.dossier?.txt_num_dossier || '',
+    'Region': terrain.region?.slt_region || '',
+    'Depart.': terrain.departement?.slt_departement || '',
+    'Arrond.': terrain.arrondissement?.slt_arrondissement || '',
+    'Commune': terrain.commune?.slt_commune || '',
+    'Service Rendue': terrain.dossier?.slt_service_rendu || '',
+    'Etat Cession.': terrain.dossier?.txt_etat_cession || '',
+    'Cession. définitive.': terrain.dossier?.txt_cession_definitive || '',
+    'Date création': formatDate(terrain.dossier?.dt_date_creation),
+    'N° Parcelle': terrain.txt_num_parcelle || '',
+    'Lotissement': terrain.txt_lotissement || '',
+    'Hors lotissement': terrain.txt_HorsLotissement || '',
+    'N° lotissement': terrain.txt_num_lotissement || '',
+    'N° Section': terrain.txt_num_section || '',
+    'Appartement': terrain.txt_appartement || '',
+    'N° titre': terrain.txt_num_titre || '',
+    'Surface': terrain.nbr_surface || '',
+    'Doc admin': terrain.slt_document_admin || '',
+    'N° délib.': terrain.txt_num_deliberation || '',
+    'Date délib.': formatDate(terrain.dt_date_deliberation),
+    'NICAD': terrain.txt_nicad || 'NON',
+    'Statut NICAD': terrain.slt_statut_nicad || '',
+    'Motif Annulation NICAD': terrain.slt_motif_annulation_nicad || '',
+    'Signalement/Désignation': texte(terrain.slt_signalement, terrain.slt_designationSignalement),
+    'Immatric,.': terrain.references_cadastrales?.rd_immatriculation_terrain || '',
+    'Dép. domaine': terrain.references_cadastrales?.slt_dependant_domaine || '',
+    'Ussu born.': terrain.references_cadastrales?.ussu_bornage || '',
+    'Titre mère': terrain.txt_titre_mere || '',
+    'Livre Fon.': terrain.references_cadastrales?.slt_lf || '',
+    'N° réquis.': terrain.references_cadastrales?.txt_num_requisition || '',
+    'Surf. born.': terrain.references_cadastrales?.txt_surface_bornage || '',
+    'Date born.': formatDate(terrain.references_cadastrales?.dt_date_bornage),
+    'Nom géom.': terrain.references_cadastrales?.txt_nom_geometre || '',
+    'Titulaire': terrain.titulaire?.slt_titulaire || '',
+    'National.': terrain.titulaire?.txt_nationalite || '',
+    'Civilité': terrain.titulaire?.slt_civilite || '',
+    'Prénom - Nom - Dénomination': texte(terrain.titulaire?.txt_prenom, terrain.titulaire?.txt_denominationPM, terrain.titulaire?.txt_nom),
+    'Pièce': terrain.titulaire?.slt_piece || '',
+    'N° Pièce': terrain.titulaire?.txt_numPiece || '',
+    'Date déliv.': formatDate(terrain.titulaire?.dt_date_delivrance),
+    'Date naiss.': formatDate(terrain.titulaire?.dt_date_naissance),
+    'Lieu naiss.': terrain.titulaire?.txt_lieu_naissance || '',
+    'Adresse': terrain.titulaire?.txt_adresse || '',
+    'Tél.': terrain.titulaire?.tel_telephone || '',
+    'Email': terrain.titulaire?.eml_email || '',
+    'Représ.': representantTitulaire(terrain.titulaire),
+    'Tél Rép.': telephoneRepresentant(terrain.titulaire),
+    'Date éval.': formatDate(terrain.evaluations_terrains?.dt_dateEvaluation),
+}));
+
+const exportToExcel = async () => {
+    if (exporting.value || !totalFiltre.value) return;
+
+    exporting.value = true;
+    try {
+        const { data } = await axios.get(route('donnees.create'), {
+            params: { ...filters.value, export: 1 },
+            headers: { Accept: 'application/json' },
+        });
+        const rows = Array.isArray(data) ? data : (data?.data || []);
+        const exportData = rowsToExport(rows);
+
+        if (!exportData.length) {
+            toast.error('Aucune donnée à exporter');
+            return;
+        }
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Base de données');
+
+        worksheet['!cols'] = Object.keys(exportData[0]).map((key) => {
+            const maxLength = Math.max(
+                key.length,
+                ...exportData.map((row) => String(row[key] ?? '').length)
+            );
+            return { wch: Math.min(maxLength + 2, 40) };
+        });
+
+        const maintenant = new Date();
+        const dateStr = [
+            maintenant.getFullYear(),
+            String(maintenant.getMonth() + 1).padStart(2, '0'),
+            String(maintenant.getDate()).padStart(2, '0'),
+        ].join('-');
+        XLSX.writeFile(workbook, `base_donnees_${dateStr}.xlsx`);
+        toast.success('Export Excel réussi');
+    } catch (error) {
+        console.error('Erreur export Excel:', error);
+        toast.error("Erreur lors de l'export");
+    } finally {
+        exporting.value = false;
+    }
 };
 
 // Chargement initial
@@ -311,6 +420,8 @@ function telephoneRepresentant(titulaire) {
                                 <BaseInput v-model="filters.annee" type="number" min="2000" max="2100" placeholder="Année" wrapper-class="w-24" />
                                 <BaseInput v-model="filters.numero" type="text" placeholder="N° dossier" wrapper-class="w-32" />
                                 <BaseInput v-model="filters.prenomNom" type="text" placeholder="Prénom Nom" wrapper-class="w-40" />
+                                <BaseInput v-model="filters.NumTitre" type="text" placeholder="N° Titre" wrapper-class="w-40" />
+                                <BaseInput v-model="filters.numNICAD" type="text" placeholder="N° NICAD" wrapper-class="w-40" />
                                 <BaseSelect
                                     v-model="filters.refServiceRendu"
                                     :options="uniqueServices"
@@ -322,6 +433,14 @@ function telephoneRepresentant(titulaire) {
                                     class="h-8 px-4 bg-white/20 text-white rounded-xl text-sm hover:bg-white/30 transition font-medium"
                                 >
                                     ✕ Réinitialiser
+                                </button>
+
+                                <button 
+                                    @click="exportToExcel"
+                                    :disabled="exporting || !totalFiltre"
+                                    class="h-8 px-4 bg-white/20 text-white rounded-xl text-sm hover:bg-white/30 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {{ exporting ? 'Export…' : 'Exporter Excel' }}
                                 </button>
                             </div>
                         </div>

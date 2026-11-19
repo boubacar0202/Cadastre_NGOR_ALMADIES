@@ -240,11 +240,13 @@ const formatDateDMY = (dateStr) => {
                                     </p>
  
                                     <form @submit.prevent class="flex flex-wrap items-center gap-2">
+                                        <BaseInput v-model="filters.txt_numdossier" type="search" maxlength="4" placeholder="Mois" wrapper-class="w-20" />
                                         <BaseInput v-model="filters.mois" type="search" maxlength="4" placeholder="Mois" wrapper-class="w-20" />
                                         <BaseInput v-model="filters.annee" type="search" maxlength="4" placeholder="Années" wrapper-class="w-20" />
                                         <BaseInput v-model="filters.numeroTF" type="search" placeholder="N° Titre" wrapper-class="w-28" />
                                         <BaseInput v-model="filters.numLot" type="search" placeholder="N° LOT" wrapper-class="w-28" />
-                                        <BaseInput v-model="filters.prenom" type="search" placeholder="Prénom Nom" wrapper-class="w-32" />
+                                        <BaseInput v-model="filters.prenom" type="search" placeholder="Prénom Nom" wrapper-class="w-32"/>
+                                        <BaseInput v-model="filters.numNICAD" type="search" placeholder="N° NICAD" wrapper-class="w-28" />
                                         <BaseInput v-model="filters.reference" type="search" placeholder="Ref.C.A" wrapper-class="w-28" />
                                         <BaseSelect
                                             v-model="filters.designation"
