@@ -216,7 +216,7 @@ class DepartController extends Controller
             'txt_prenomNomcd'               => 'nullable|string|max:255',
             'txt_numLotcd'                  => 'nullable|string|max:50',      // ✅ Limite cohérente avec la BDD
             'txt_superficiecd'              => 'nullable|numeric|min:0|max:999999',
-            'txt_numTitreFonciercd'         => 'nullable|string|max:255',
+            'txt_numTitreFonciercd'         => 'nullable|string|max:20',
             'txt_numTitreMerecd'            => 'nullable|string|max:20',
             'txt_NICADcd'                   => 'nullable|string|max:25',
             'txt_lotissementcd'             => ['nullable', 'string', 'max:255', new LotissementConnu([
@@ -332,7 +332,7 @@ class DepartController extends Controller
                 Rule::unique('departs', 'txt_numdordrecd')->ignore($depart->id),
             ],
             'txt_caracterecd' => 'nullable|string|max:255', 
-            'txt_numdossiercd' => 'nullable|string|max:255',
+            'txt_numdossiercd' => 'nullable|string|max:50',
             'txt_avisReponsecd' => 'nullable|string|max:50',
             'dt_datecouriercd' => 'required|date',
             'txt_typecourriercd' => 'required|string|max:255',
@@ -342,9 +342,9 @@ class DepartController extends Controller
             'txt_nombrepiececd' => 'required|integer|max:255',
             'txt_referencecd' => 'nullable|string|max:255',
             'txt_prenomNomcd' => 'nullable|string|max:255',
-            'txt_numLotcd' => 'nullable|string|max:255',
+            'txt_numLotcd' => 'nullable|string|max:50',
             'txt_superficiecd' => 'nullable|numeric|min:0|max:999999',
-            'txt_numTitreFonciercd' => 'nullable|string|max:255',
+            'txt_numTitreFonciercd' => 'nullable|string|max:20',
             'txt_numTitreMerecd' => 'nullable|string|max:20',
             'txt_NICADcd' => 'nullable|string|max:25',
             'txt_lotissementcd' => ['nullable', 'string', 'max:255', new LotissementConnu([

@@ -41,7 +41,6 @@ const form = useForm({
     txt_numTitreMere: arrivees?.txt_numTitreMere || '',
     txt_numTitreFoncier: arrivees?.txt_numTitreFoncier || '',
     txt_NICAD: arrivees?.txt_NICAD || '',
-    txt_numTF: arrivees?.txt_numTF || '',
     txt_lotissement: arrivees?.txt_lotissement || '',
     dt_date: arrivees?.dt_date || '',
     txt_heure: arrivees?.txt_heure || '',
@@ -54,6 +53,30 @@ const form = useForm({
     fichierPDF: null,
 });
 
+function handleFileUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) {
+        form.fichierPDF = null;
+        return;
+    }
+
+    if (file.type !== "application/pdf") {
+        toast.error("Veuillez sélectionner un fichier PDF valide.");
+        event.target.value = "";
+        form.fichierPDF = null;
+        return;
+    }
+
+    if (file.size > 100 * 1024 * 1024) {
+        toast.error("Le fichier dépasse 100 Mo !");
+        event.target.value = "";
+        form.fichierPDF = null;
+        return;
+    }
+
+    form.fichierPDF = file;
+}
+
 const optionsAgents = computed(() => {
     const noms = (agents || []).map((nom) => String(nom).trim()).filter(Boolean);
     const actuel = String(form.txt_agenttraiteur || "").trim();
@@ -65,7 +88,7 @@ const optionsAgents = computed(() => {
 
 const show = computed(() => form.txt_categorie === "Convocation - Invitation");
 
-const showDemandeServices = ref(false); 
+const showDemandeServices = ref(true); 
 watch(
     [() => form.txt_designation, () => form.txt_typecourrier],
     ([designation, typecourrier]) => {
@@ -143,38 +166,6 @@ watch(
         form.txt_reference = `${newNum} du ${day}-${month}-${year}`;
     }
 );
-  
-// 📁 Gestion du changement de fichier
-function handleFileChange(event) {
-    const file = event.target.files[0];
-    if (file) {
-        form.fichierPDF = file;
-        console.log("Fichier sélectionné:", file.name);
-    } else {
-        form.fichierPDF = null;
-    }
-}
-
-// ✅ Fonction suppression fichier PDF
-const deleteFile = (arrivee) => {
-    if (!arrivee || !arrivee.id) {
-        console.error('Aucun départ fourni à deleteFile')
-        return
-    }
-
-    if (confirm('Voulez-vous vraiment supprimer ce fichier PDF ?')) {
-        router.delete(route("arrivee.pdf.destroy", arrivee.id), {
-            onSuccess: () => {
-                existingPdf.value = null;
-                arrivee.fichierPDF = null;
-                toast.success("Fichier supprimé avec succès");
-            },
-            onError: () => {  
-                toast.error('Erreur lors de la suppression du fichier ❌')
-            },
-        })
-    }
-}
 
 async function submit() {
     try {

@@ -4,11 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Depart extends Model
 {
     //
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     // Nom de la table (si Laravel ne devine pas automatiquement)
     protected $table = 'departs';

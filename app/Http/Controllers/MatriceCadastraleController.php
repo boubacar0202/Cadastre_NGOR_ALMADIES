@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CodeAcces;
 use App\Models\Terrain;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -74,8 +75,14 @@ class MatriceCadastraleController extends Controller
         ]);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        if (! $request->filled('code') || ! CodeAcces::confirme(3, (string) $request->input('code'))) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'code' => 'Code d\'accès invalide.',
+            ]);
+        }
+
         $terrain = Terrain::findOrFail($id);
         $terrain->delete();
 

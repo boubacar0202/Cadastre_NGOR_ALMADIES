@@ -8,6 +8,7 @@ use App\Rules\LotissementConnu;
 use App\Services\AgentInscritService;
 use App\Services\AttributionDossierService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;  
 use Illuminate\Support\Facades\Storage; 
 
@@ -98,7 +99,7 @@ class ArriveeController extends Controller
             'dt_datearrivee'     => 'required|date',
             'txt_numcourier'     => 'required|string|max:255',
             'dt_datecourier'     => 'required|date|before_or_equal:today',
-            'txt_reference'      => 'required|unique:arrivees,txt_reference|string|max:255',
+            'txt_reference'      => ['required', 'string', 'max:255', Rule::unique('arrivees', 'txt_reference')->whereNull('deleted_at')],
             'txt_categorie'      => 'required|string|max:255',
             'txt_designation'    => 'required|string|max:255',
             'txt_prenomNom'      => 'nullable|string|max:255',
@@ -230,7 +231,7 @@ class ArriveeController extends Controller
             'dt_datearrivee' => 'required|date',
             'txt_numcourier' => 'required|string|max:255',
             'dt_datecourier' => 'required|date|before_or_equal:today',
-            'txt_reference' => 'required|string|max:255|unique:arrivees,txt_reference,' . $id,
+            'txt_reference' => ['required', 'string', 'max:255', Rule::unique('arrivees', 'txt_reference')->ignore($id)->whereNull('deleted_at')],
             'txt_categorie' => 'required|string|max:255',
             'txt_designation' => 'required|string|max:255',
             'txt_prenomNom' => 'nullable|string|max:255',

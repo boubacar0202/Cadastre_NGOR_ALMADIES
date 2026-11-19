@@ -318,6 +318,7 @@ function formatOccupants(references_usages) {
 }
 function formatOccupant(o = {}) {
   return {
+    id: o.id ?? null,
     txt_nomOccupantTG: o.txt_nomOccupantTG || "",
     txt_numAppartementTG: o.txt_numAppartementTG || "",
     txt_activiteTG: o.txt_activiteTG || "",

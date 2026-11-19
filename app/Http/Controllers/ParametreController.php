@@ -477,7 +477,7 @@ class ParametreController extends Controller
         $liste = $user->role === 'user' ? 'Utilisateurs' : 'administrateurs';
 
         return redirect()
-            ->route('parametre.admin')
+            ->route($user->role === 'user' ? 'parametre.user' : 'parametre.admin')
             ->with('success', 'Le compte de ' . $user->name . ' a été créé. Il figure dans la liste des ' . $liste . '.');
     }
 

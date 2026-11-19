@@ -239,7 +239,7 @@ const formatDate = (dateString) => {
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_prenomNom || '-' }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_numLot || '-' }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_superficie || '-' }}</td>
-                                            <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_numTF || '-' }}</td>
+                                            <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_numTitreFoncier || '-' }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_lotissement || '-' }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ formatDate(arrivee.dt_date) }}</td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ arrivee.txt_heure || '-' }}</td>

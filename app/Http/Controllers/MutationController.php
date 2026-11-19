@@ -348,6 +348,15 @@ class MutationController extends Controller
             ]);
         }
 
+        foreach ([
+            'txt_personneRepresentantPM_MT' => 'txt_perssonneRepresentantPM_MT',
+            'txt_personneRepresentantPM_Mutation' => 'txt_perssonneRepresentantPM_Mutation',
+        ] as $champ => $ancien) {
+            if (! $request->filled($champ) && $request->filled($ancien)) {
+                $request->merge([$champ => $request->input($ancien)]);
+            }
+        }
+
         $validatedData = $request->validate([
             'txt_num_lotissementMutation' => 'required|string',
             'txt_lotissementMutation'     => 'required|string',
@@ -401,6 +410,9 @@ class MutationController extends Controller
             'txt_lieu_naissanceMutation'     => 'nullable|string',
             'txt_adresseMutation'            => 'nullable|string',
             'tel_telephoneMutation'          => 'nullable|string',
+            'txt_representantMutation'       => 'nullable|string',
+            'tel_telRepresentantMutation'    => 'nullable|string',
+            'txt_jugementMutation'           => 'nullable|string',
 
             // Acte
             'txt_typeActeMutation'        => 'required|string',
@@ -490,6 +502,9 @@ class MutationController extends Controller
             'txt_lieu_naissanceMutation'     => $validatedData['txt_lieu_naissanceMutation'] ?? null,
             'txt_adresseMutation'            => $validatedData['txt_adresseMutation'] ?? null,
             'tel_telephoneMutation'          => $validatedData['tel_telephoneMutation'] ?? null,
+            'txt_representantMutation'       => $validatedData['txt_representantMutation'] ?? null,
+            'tel_telRepresentantMutation'    => $validatedData['tel_telRepresentantMutation'] ?? null,
+            'txt_jugementMutation'           => $validatedData['txt_jugementMutation'] ?? null,
 
             'txt_typeActeMutation'        => $validatedData['txt_typeActeMutation'],
             'txt_nomNotaireMutation'      => $validatedData['txt_nomNotaireMutation'] ?? null,

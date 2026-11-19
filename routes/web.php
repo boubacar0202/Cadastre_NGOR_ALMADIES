@@ -216,7 +216,7 @@ Route::middleware('auth')->group(function () {
         // 📋 Mutations
         Route::get('/mutation', [ParametreController::class, 'mutation'])->name('parametre.mutation');
         Route::get('/mutationEdit/{id}', [ParametreController::class, 'editMutation'])->name('parametre.mutation.edit');
-        Route::put('/mutation/update/{id}', [ParametreController::class, 'updateMutation'])->name('parametre.updateMutation'); 
+        Route::put('/mutation/update/{id}', [MutationController::class, 'update'])->name('parametre.updateMutation'); 
         Route::delete('/mutation/destroy/{id}', [ParametreController::class, 'destroyMutation'])->name('parametre.mutation.destroy'); 
  
         // 🏘️ Points
@@ -289,8 +289,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/shapefiles/{shapefile}/geojson', [ShapefileController::class, 'geojson'])->name('shapefiles.geojson');
     Route::post('/api/plan/previsualiser', [ShapefileController::class, 'previsualiser'])->name('plan.previsualiser');
 
-    // Génération de polygones à partir d'un centroïde
-    Route::post('/api/generer-polygone', [ShapefileController::class, 'genererPolygone'])->name('api.generer.polygone');
     Route::post('/generer-angles', [ShapefileController::class, 'genererAngles'])->name('generer.angles'); 
 
 });

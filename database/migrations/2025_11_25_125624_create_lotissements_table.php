@@ -16,7 +16,7 @@ return new class extends Migration
             $table->timestamps();
             $table->string('txt_denomination'); 
             $table->string('txt_nombreParcelle');
-            $table->string('txt_surfaceLotissement', 15, 2);
+            $table->decimal('txt_surfaceLotissement', 15, 2);
             $table->string('txt_documentsAfferants')->nullable();
 
             $table->foreignId('slt_departement')->constrained('departements')->onDelete('cascade');

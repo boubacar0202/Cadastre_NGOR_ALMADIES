@@ -28,6 +28,7 @@ class InstancearriveeController extends Controller
         'txt_superficie',
         'txt_numTitreMere',
         'txt_numTitreFoncier',
+        'txt_NICAD',
         'txt_lotissement',
         'dt_date',
         'txt_heure',
@@ -110,7 +111,7 @@ class InstancearriveeController extends Controller
                         : [],
                 ];
             },
-            'filters' => $request->only(['mois', 'annee', 'numeroTF', 'numLot', 'prenom', 'reference', 'designation']),
+            'filters' => $request->only(['txt_numdossier', 'mois', 'annee', 'numeroTF', 'numLot', 'numNICAD', 'prenom', 'reference', 'designation', 'numero']),
         ]);
     }
 
@@ -126,12 +127,15 @@ class InstancearriveeController extends Controller
     {
         $query = Arrivee::query()->select(self::COLONNES);
 
+        $this->filtrerContient($query, 'txt_numdossier', $request->input('txt_numdossier'));
         $this->filtrerMois($query, $request->input('mois'));
         $this->filtrerAnnee($query, $request->input('annee'));
         $this->filtrerContient($query, 'txt_numTitreFoncier', $request->input('numeroTF'));
+        $this->filtrerContient($query, 'txt_NICAD', $request->input('numNICAD'));
         $this->filtrerContient($query, 'txt_numLot', $request->input('numLot'));
         $this->filtrerContient($query, 'txt_prenomNom', $request->input('prenom'));
         $this->filtrerContient($query, 'txt_reference', $request->input('reference'));
+        $this->filtrerContient($query, 'txt_numdordre', $request->input('numero'));
 
         $designation = trim((string) $request->input('designation', ''));
         if ($designation !== '') {

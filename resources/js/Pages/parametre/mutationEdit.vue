@@ -48,7 +48,7 @@ const form = useForm({
     txt_formJuridiquePM_MT: mutation?.txt_formJuridiquePM_MT || "",
     txt_denominationPM_MT: mutation?.txt_denominationPM_MT || "",
     txt_nineaPM_MT: mutation?.txt_nineaPM_MT || "",
-    txt_perssonneRepresentantPM_MT: mutation?.txt_perssonneRepresentantPM_MT || "",
+    txt_personneRepresentantPM_MT: mutation?.txt_personneRepresentantPM_MT || mutation?.txt_perssonneRepresentantPM_MT || "",
     txt_fonctionPM_MT: mutation?.txt_fonctionPM_MT || "",
     txt_telephonePM_MT: mutation?.txt_telephonePM_MT || "",
     txt_emailPM_MT: mutation?.txt_emailPM_MT || "",
@@ -82,7 +82,7 @@ const form = useForm({
     txt_formJuridiquePM_Mutation: mutation?.txt_formJuridiquePM_Mutation || "",
     txt_denominationPM_Mutation: mutation?.txt_denominationPM_Mutation || "",
     txt_nineaPM_Mutation: mutation?.txt_nineaPM_Mutation || "",
-    txt_perssonneRepresentantPM_Mutation: mutation?.txt_perssonneRepresentantPM_Mutation || "",
+    txt_personneRepresentantPM_Mutation: mutation?.txt_personneRepresentantPM_Mutation || mutation?.txt_perssonneRepresentantPM_Mutation || "",
     txt_fonctionPM_Mutation: mutation?.txt_fonctionPM_Mutation || "",
     txt_telephonePM_Mutation: mutation?.txt_telephonePM_Mutation || "",
     txt_emailPM_Mutation: mutation?.txt_emailPM_Mutation || "",
@@ -298,24 +298,21 @@ const codeDaccees = async (code) => {
 //     }); 
 // };
 async function submitForm() {
-  try {
-    if (form.fichierPDFMutation instanceof File) {
-      const pdfForm = new FormData();
-      pdfForm.append("fichierPDFMutation", form.fichierPDFMutation);
-      await axios.post(route("mutation.uploadPDF", mutation.id), pdfForm, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+  form.transform((data) => {
+    if (!(data.fichierPDFMutation instanceof File)) {
+      const copie = { ...data };
+      delete copie.fichierPDFMutation;
+      return copie;
     }
-    await form.put(route("mutation.update", mutation.id), form.data(), {
-      forceFormData: true,
-      preserveScroll: true,
-      onSuccess: () => console.log("✅ Update réussi !"),
-      onError: (errors) => console.error(errors),
-    });
-  } catch (error) {
-    console.error("❌ Erreur submit :", error);
-    toast.error("❌ Erreur lors de la modification");
-  }
+    return data;
+  });
+
+  form.put(route("mutation.update", mutation.id), {
+    forceFormData: true,
+    preserveScroll: true,
+    onError: () => toast.error("Erreur lors de la modification."),
+    onFinish: () => form.transform((data) => data),
+  });
 }
 
 </script>
@@ -566,8 +563,8 @@ async function submitForm() {
                                         <BaseInput
                                             v-if="showSectionPM"
                                             label="Nom.Personne Responsable" 
-                                            v-model="form.txt_perssonneRepresentantPM_MT"
-                                            name="txt_perssonneRepresentantPM_MT"
+                                            v-model="form.txt_personneRepresentantPM_MT"
+                                            name="txt_personneRepresentantPM_MT"
                                             type="text"
                                         /> 
                                                                                         
@@ -833,8 +830,8 @@ async function submitForm() {
                                         <BaseInput
                                             v-if="showSectionPM_Acq"
                                             label="Nom.Personne Responsable"
-                                            v-model="form.txt_perssonneRepresentantPM_Mutation"
-                                            name="txt_perssonneRepresentantPM_Mutation"
+                                            v-model="form.txt_personneRepresentantPM_Mutation"
+                                            name="txt_personneRepresentantPM_Mutation"
                                             type="text"
                                         />
 

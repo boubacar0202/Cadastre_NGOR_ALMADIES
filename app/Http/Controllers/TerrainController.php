@@ -11,6 +11,22 @@ use Inertia\Inertia;
 
 class TerrainController extends Controller
 {
+    public function show(string $numero)
+    {
+        $terrain = Terrain::query()
+            ->where('txt_num_parcelle', $numero)
+            ->orWhere('txt_nicad', $numero)
+            ->first();
+
+        if (! $terrain) {
+            return response()->json([
+                'message' => 'Parcelle introuvable',
+            ], 404);
+        }
+
+        return response()->json($terrain);
+    }
+
     public function destroyTerrain(Request $request, $id)
     {
         try {

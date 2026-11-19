@@ -32,13 +32,16 @@ const props = defineProps({
         default: () => ({}) } });
 
 const filters = ref({
+    txt_numdossier: props.filters?.txt_numdossier || '',
     mois: props.filters?.mois || '',
     annee: props.filters?.annee || '',
     numeroTF: props.filters?.numeroTF || '',
     numLot: props.filters?.numLot || '',
     prenom: props.filters?.prenom || '',
     reference: props.filters?.reference || '',
-    designation: props.filters?.designation || '' });
+    designation: props.filters?.designation || '',
+    numNICAD: props.filters?.numNICAD || '',
+    numero: props.filters?.numero || '' });
 
 const rowRefs = ref({});
 const cibleConvocation = ref(null);
@@ -240,7 +243,7 @@ const formatDateDMY = (dateStr) => {
                                     </p>
  
                                     <form @submit.prevent class="flex flex-wrap items-center gap-2">
-                                        <BaseInput v-model="filters.txt_numdossier" type="search" maxlength="4" placeholder="Mois" wrapper-class="w-20" />
+                                        <BaseInput v-model="filters.txt_numdossier" type="search" placeholder="N° Dossier" wrapper-class="w-32" />
                                         <BaseInput v-model="filters.mois" type="search" maxlength="4" placeholder="Mois" wrapper-class="w-20" />
                                         <BaseInput v-model="filters.annee" type="search" maxlength="4" placeholder="Années" wrapper-class="w-20" />
                                         <BaseInput v-model="filters.numeroTF" type="search" placeholder="N° Titre" wrapper-class="w-28" />

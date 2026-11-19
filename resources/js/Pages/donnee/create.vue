@@ -125,14 +125,14 @@ const goToPage = (url) => {
 };
 
 const prevPage = () => {
-    if (props.terrains.links?.prev) {
-        goToPage(props.terrains.links.prev);
+    if (props.terrains.prev_page_url) {
+        goToPage(props.terrains.prev_page_url);
     }
 };
 
 const nextPage = () => {
-    if (props.terrains.links?.next) {
-        goToPage(props.terrains.links.next);
+    if (props.terrains.next_page_url) {
+        goToPage(props.terrains.next_page_url);
     }
 };
 
@@ -158,7 +158,7 @@ const confirmerSuppression = (codes) => {
             showDeleteModal.value = false;
             selectedTerrain.value = null;
             toast.success('Terrain supprimé avec succès');
-            debouncedSearch(props.terrains.meta?.current_page || 1);
+            debouncedSearch(props.terrains.current_page || 1);
         },
         onError: (errors) => {
             toast.error('Erreur lors de la suppression');
@@ -522,7 +522,7 @@ function telephoneRepresentant(titulaire) {
                                             class="h-8 text-xs hover:bg-primary hover:text-primary font-semibold text-primary-txt text-center"  
                                         >
                                             <td class="sticky left-0 z-8 text-xs border bg-white px-2 py-1 whitespace-nowrap">
-                                                {{ ((terrains.meta?.current_page || 1) - 1) * (terrains.meta?.per_page || 15) + index + 1 }}
+                                                {{ ((terrains.current_page || 1) - 1) * (terrains.per_page || 15) + index + 1 }}
                                             </td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap transition-colors duration-200" :class="(getCellClass(terrain))"><span class="font-mono">{{ terrain.dossier?.txt_num_dossier  || ''}}</span></td>
                                             <td class="px-2 py-1 text-xs border whitespace-nowrap">{{ terrain.region?.slt_region || '' }}</td>
@@ -615,7 +615,7 @@ function telephoneRepresentant(titulaire) {
                             <div class="flex gap-1 flex-wrap">
                                 <button 
                                     @click="prevPage"
-                                    :disabled="!terrains.links?.prev"
+                                    :disabled="!terrains.prev_page_url"
                                     class="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed bg-gray-200 hover:bg-gray-300 text-primary-txt"
                                 >
                                     ← Précédent
@@ -639,7 +639,7 @@ function telephoneRepresentant(titulaire) {
                                 
                                 <button 
                                     @click="nextPage"
-                                    :disabled="!terrains.links?.next"
+                                    :disabled="!terrains.next_page_url"
                                     class="px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed bg-gray-200 hover:bg-gray-300 text-primary-txt"
                                 >
                                     Suivant →

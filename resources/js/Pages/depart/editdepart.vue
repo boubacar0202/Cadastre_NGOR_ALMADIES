@@ -359,7 +359,7 @@ const deleteFile = (depart) => {
     }
 
     if (confirm('Voulez-vous vraiment supprimer ce fichier PDF ?')) {
-        router.delete(`/depart/delete-pdf/${depart.id}`, {
+        router.delete(route('depart.pdf.destroy', depart.id), {
             onSuccess: () => {
                 depart.fichierPDFcd = null;
                 toast.success('Fichier supprimé avec succès ✅');

@@ -1783,7 +1783,7 @@ async function enregistrerProjet() {
             section: ligne.section,
             nomSection: ligne.nomSection,
             parcelle: ligne.parcelle,
-            lotissement: ligne.base?.txt_lotissement || 'ligne.lotissement' || '',
+            lotissement: ligne.base?.txt_lotissement || ligne.lotissement || '',
             suffixe: ligne.suffixe,
             surface: ligne.surface,
             occupee: ligne.occupee,
@@ -2399,6 +2399,21 @@ function zoomToStoredBounds(shp) {
 
     safeFitBounds(bounds, { padding: [20, 20], maxZoom: 18 });
     return true;
+}
+
+async function downloadShapefile(shp) {
+    try {
+        const response = await axios.get(route('shapefiles.geojson', shp.id), { responseType: 'blob' });
+        const url = URL.createObjectURL(response.data);
+        const lien = document.createElement('a');
+        const nom = String(shp.nom || 'plan').replace(/[^\w.-]+/g, '_');
+        lien.href = url;
+        lien.download = `${nom}.geojson`;
+        lien.click();
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        toast.error('Le plan n’a pas pu être téléchargé.');
+    }
 }
 
 async function zoomToShapefile(shp) {

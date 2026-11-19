@@ -226,6 +226,7 @@ class SecretariatController extends Controller
     {
         // 🔥 Nettoyage NICAD
         $nicadNettoye = preg_replace('/\s+/', '', $request->txt_nicad ?? '');
+        $terrainAReutiliser = null;
 
         // Récupérer l'ID du dossier en cours (si édition)
         $dossierId = $request->route('dossier') // selon votre routing
@@ -265,6 +266,7 @@ class SecretariatController extends Controller
             'txt_etat_cession' => 'nullable|string',
             'txt_cession_definitive' => 'nullable|string',
             'dt_date_creation' => 'required|date',
+            'txt_num_dordre' => 'required|integer|min:1|unique:dossiers,txt_num_dordre',
             'txt_agentTraiteur' => 'required|integer|exists:users,id',
 
             'rd_immatriculation_terrain' => 'required|string',
@@ -409,15 +411,11 @@ class SecretariatController extends Controller
             ]);
         }
 
-        return DB::transaction(function () use ($validated, $agent, $request, $attributions) {
+        return DB::transaction(function () use ($validated, $agent, $request, $attributions, $terrainAReutiliser) {
 
-            // 🔢 numéro ordre optimisé
-            $numeroDordre = (Dossier::max('txt_num_dordre') ?? 0) + 1;
-
-            // 📁 DOSSIER
             $dossier = Dossier::create([
                 'txt_num_dossier' => $validated['txt_num_dossier'],
-                'txt_num_dordre' => $numeroDordre,
+                'txt_num_dordre' => $validated['txt_num_dordre'],
                 'slt_service_rendu' => $validated['slt_service_rendu'] ?? null,
                 'txt_etat_cession' => $validated['txt_etat_cession'] ?? null,
                 'txt_cession_definitive' => $validated['txt_cession_definitive'] ?? null,
@@ -478,7 +476,7 @@ class SecretariatController extends Controller
             ]);
 
             // 🏡 TERRAIN
-            $terrain = Terrain::create([
+            $champsTerrain = [
                 'txt_lotissement' => $validated['txt_lotissement'] ?? null,
                 'txt_HorsLotissement' => $validated['txt_HorsLotissement'] ?? null,
                 'txt_num_lotissement' => $validated['txt_num_lotissement'] ?? null,
@@ -504,7 +502,13 @@ class SecretariatController extends Controller
                 'txt_num_dossier' => $dossier->id,
                 'reference_cadastrale_id' => $reference->id,
                 'titulaire_id' => $titulaire->id,
-            ]);
+            ];
+            if ($terrainAReutiliser) {
+                $terrainAReutiliser->update($champsTerrain);
+                $terrain = $terrainAReutiliser;
+            } else {
+                $terrain = Terrain::create($champsTerrain);
+            }
 
             return redirect()->route('secretariat.create')->with([
                 'nbr_surface' => $terrain->nbr_surface,
@@ -652,7 +656,7 @@ class SecretariatController extends Controller
             $terrain->references_cadastrales->update($request->only([
                 'rd_immatriculation_terrain',
                 'slt_dependant_domaine',
-                'issu_bornage', 
+                'ussu_bornage', 
                 'slt_lf',
                 'txt_num_requisition',
                 'txt_surface_bornage',
@@ -800,7 +804,7 @@ class SecretariatController extends Controller
                 'txt_formJuridiquePM_MT'      => $request->input('txt_formJuridiquePM'),
                 'txt_denominationPM_MT'       => $request->input('txt_denominationPM'),
                 'txt_nineaPM_MT'              => $request->input('txt_nineaPM'),
-                'txt_perssonneRepresentantPM_MT' => $request->input('txt_perssonneRepresentantPM'),
+                'txt_personneRepresentantPM_MT' => $request->input('txt_perssonneRepresentantPM'),
                 'txt_fonctionPM_MT'           => $request->input('txt_fonctionPM'),
                 'txt_telephonePM_MT'          => $request->input('txt_telephonePM'),
                 'txt_emailPM_MT'              => $request->input('txt_emailPM'),
@@ -840,7 +844,7 @@ class SecretariatController extends Controller
                 'txt_formJuridiquePM_Mutation'=> $request->input('txt_formJuridiquePM_Mutation'),
                 'txt_denominationPM_Mutation' => $request->input('txt_denominationPM_Mutation'),
                 'txt_nineaPM_Mutation'        => $request->input('txt_nineaPM_Mutation'),
-                'txt_perssonneRepresentantPM_Mutation' => $request->input('txt_perssonneRepresentantPM_Mutation'),
+                'txt_personneRepresentantPM_Mutation' => $request->input('txt_perssonneRepresentantPM_Mutation'),
                 'txt_fonctionPM_Mutation'     => $request->input('txt_fonctionPM_Mutation'),
                 'txt_telephonePM_Mutation'    => $request->input('txt_telephonePM_Mutation'),
                 'txt_emailPM_Mutation'        => $request->input('txt_emailPM_Mutation'),
@@ -875,19 +879,22 @@ class SecretariatController extends Controller
         // ✅ Mise à jour de la relation reference_usage
         if ($terrain->references_usages && $request->has('occupants')) {
             foreach ($request->input('occupants') as $occupantData) {
-                ReferenceUsage::updateOrCreate(
-                    [
-                        'id' => $occupantData['id'] ?? null, // ou autre champ unique
-                    ],
-                    array_merge([
-                        'txt_nicad' => $terrain->txt_nicad,
-                        'txt_num_dossier' => $terrain->dossier?->txt_num_dossier,
-                        'slt_usage' => $request->input('slt_usage'),
-                        'slt_residence' => $request->input('slt_residence'),
-                        'nbr_montantLoyerTotal' => $request->input('nbr_montantLoyerTotal') ?? 0,
-                        'nbr_TVATotal' => $request->input('nbr_TVATotal') ?? 0,
-                    ], $occupantData)
-                );
+                $id = $occupantData['id'] ?? null;
+                unset($occupantData['id']);
+                $donnees = array_merge([
+                    'txt_nicad' => $terrain->txt_nicad,
+                    'txt_num_dossier' => $terrain->dossier?->txt_num_dossier,
+                    'slt_usage' => $request->input('slt_usage'),
+                    'slt_residence' => $request->input('slt_residence'),
+                    'nbr_montantLoyerTotal' => $request->input('nbr_montantLoyerTotal') ?? 0,
+                    'nbr_TVATotal' => $request->input('nbr_TVATotal') ?? 0,
+                ], $occupantData);
+
+                if ($id) {
+                    ReferenceUsage::query()->whereKey($id)->where('txt_nicad', $terrain->txt_nicad)->update($donnees);
+                } elseif ($terrain->txt_nicad) {
+                    ReferenceUsage::query()->create($donnees);
+                }
             } 
             
         }

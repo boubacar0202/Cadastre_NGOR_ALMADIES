@@ -211,7 +211,12 @@ const cartes = [
                                     <td class="border-b px-3 py-3">
                                         <div class="text-xs uppercase tracking-wide">{{ ligne.origine_libelle }}</div>
                                         <div class="font-semibold">{{ ligne.numero }}</div>
-                                        <div class="text-xs">{{ ligne.detail || ligne.service || "—" }}</div>
+                                        <div v-if="ligne.detail || ligne.service" class="text-xs">{{ ligne.detail || ligne.service }}</div>
+                                        <div v-for="info in ligne.identite" :key="info.label" class="text-xs">
+                                            <span class="text-primary-txt/70">{{ info.label }}</span>
+                                            {{ info.valeur }}
+                                        </div>
+                                        <div v-if="ligne.attribue_le" class="mt-1 text-xs">Attribué le {{ ligne.attribue_le }}</div>
                                     </td>
                                     <td class="border-b px-3 py-3">
                                         {{ ligne.agent }}
@@ -275,6 +280,11 @@ const cartes = [
                                     <td class="border-b px-3 py-3">
                                         <div class="text-xs uppercase tracking-wide">{{ ligne.origine_libelle }}</div>
                                         <div class="font-semibold">{{ ligne.numero }}</div>
+                                        <div v-if="ligne.detail || ligne.service" class="text-xs">{{ ligne.detail || ligne.service }}</div>
+                                        <div v-for="info in ligne.identite" :key="info.label" class="text-xs">
+                                            <span class="text-primary-txt/70">{{ info.label }}</span>
+                                            {{ info.valeur }}
+                                        </div>
                                     </td>
                                     <td class="border-b px-3 py-3">
                                         {{ ligne.agent }}
@@ -327,6 +337,11 @@ const cartes = [
                                     <td class="border-b px-3 py-3">
                                         <div class="text-xs uppercase tracking-wide">{{ ligne.origine_libelle }}</div>
                                         <div class="font-semibold">{{ ligne.numero }}</div>
+                                        <div v-if="ligne.detail || ligne.service" class="text-xs">{{ ligne.detail || ligne.service }}</div>
+                                        <div v-for="info in ligne.identite" :key="info.label" class="text-xs">
+                                            <span class="text-primary-txt/70">{{ info.label }}</span>
+                                            {{ info.valeur }}
+                                        </div>
                                     </td>
                                     <td class="border-b px-3 py-3">
                                         {{ ligne.agent }}

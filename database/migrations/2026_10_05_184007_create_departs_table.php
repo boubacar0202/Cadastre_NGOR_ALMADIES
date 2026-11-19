@@ -17,7 +17,7 @@ return new class extends Migration
             $table->id();
             $table->string('txt_numdordrecd'); 
             $table->string('txt_avisReponsecd')->nullable();
-            $table->string('txt_numdossiercd', 10)->nullable()->change(); 
+            $table->string('txt_numdossiercd', 50)->nullable(); 
             $table->index('txt_numdordrecd'); 
             $table->string('txt_typecourriercd');
             $table->string('txt_caracterecd')->nullable();
