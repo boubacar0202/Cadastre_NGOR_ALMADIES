@@ -1148,17 +1148,11 @@ class AttributionDossierService
         $champs = match ($attribution->origine ?: 'dossier') {
             'arrivee' => [
                 'NICAD' => $attribution->arrivee?->txt_NICAD,
-                'N° TF' => $attribution->arrivee?->txt_numTitreFoncier,
                 'Requérant' => $attribution->arrivee?->txt_prenomNom,
-                'Objet' => $attribution->arrivee?->txt_objet,
-                'Lotissement' => $attribution->arrivee?->txt_lotissement,
             ],
             'depart' => [
                 'NICAD' => $attribution->depart?->txt_NICADcd,
-                'N° TF' => $attribution->depart?->txt_numTitreFonciercd,
                 'Concerné' => $attribution->depart?->txt_prenomNomcd,
-                'Objet' => $attribution->depart?->txt_objetcd,
-                'Lotissement' => $attribution->depart?->txt_lotissementcd,
             ],
             default => $this->identiteDossier($attribution->dossier),
         };
@@ -1179,10 +1173,7 @@ class AttributionDossierService
     {
         $vide = [
             'NICAD' => null,
-            'N° titre' => null,
             'Titulaire' => null,
-            'Commune' => null,
-            'Lotissement' => null,
         ];
 
         $terrain = $dossier?->terrains?->first();
@@ -1199,10 +1190,7 @@ class AttributionDossierService
 
         return [
             'NICAD' => $terrain->txt_nicad,
-            'N° titre' => $terrain->txt_num_titre,
             'Titulaire' => trim(($titulaire?->slt_titulaire ? $titulaire->slt_titulaire.' — ' : '').$nom),
-            'Commune' => $terrain->commune?->slt_commune,
-            'Lotissement' => $terrain->txt_lotissement ?: $terrain->txt_HorsLotissement,
         ];
     }
 
