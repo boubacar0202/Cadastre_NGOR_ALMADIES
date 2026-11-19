@@ -43,7 +43,7 @@ const services = [
         <link rel="icon" sizes="512x512" href="/logo-01.png">
     </Head>
 
-    <div class="min-h-screen bg-primary-layout text-primary-txt">
+    <div class="flex min-h-screen flex-col bg-primary-layout text-primary-txt">
         <div class="h-1.5 bg-gradient-to-r from-primary via-primary-menu to-primary-only"></div>
 
         <header class="sticky top-0 z-20 border-b border-primary-only/80 bg-white/90 backdrop-blur-md">
@@ -81,7 +81,7 @@ const services = [
             </div>
         </header>
 
-        <main>
+        <main class="flex-1">
             <section class="mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-2 lg:py-16">
                 <div>
                     <h1 class="text-4xl font-bold leading-tight tracking-tight text-primary sm:text-5xl">
@@ -125,7 +125,7 @@ const services = [
             </section>
         </main>
 
-        <footer class="border-t border-primary/20 bg-primary px-4 py-8 text-center text-sm text-primary-form">
+        <footer class="mt-auto w-full shrink-0 border-t border-primary/20 bg-primary px-4 py-8 text-center text-sm text-primary-form">
             <p class="font-semibold tracking-wide text-white">Centre des services fiscaux de Ngor Almadies</p>
             <p class="mt-1">Cadastre de Ngor Almadies — Programme de gestion de base de données MB-1</p>
         </footer>

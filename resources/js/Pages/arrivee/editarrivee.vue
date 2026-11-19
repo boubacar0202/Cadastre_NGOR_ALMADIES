@@ -14,8 +14,9 @@ defineOptions({ layout: DefaultLayout });
 
 const today = new Date().toISOString().split("T")[0];
 
-const { arrivees } = defineProps({
+const { arrivees, agents } = defineProps({
     arrivees: Object,
+    agents: { type: Array, default: () => [] },
 });
 
 const existingPdf = ref(arrivees?.fichierPDF || null);
@@ -47,6 +48,15 @@ const form = useForm({
     txt_agenttraiteur: arrivees?.txt_agenttraiteur || '',
     txt_observation: arrivees?.txt_observation || "",
     fichierPDF: null,
+});
+
+const optionsAgents = computed(() => {
+    const noms = (agents || []).map((nom) => String(nom).trim()).filter(Boolean);
+    const actuel = String(form.txt_agenttraiteur || "").trim();
+    if (actuel && !noms.includes(actuel)) {
+        noms.unshift(actuel);
+    }
+    return noms.map((nom) => ({ value: nom, label: nom }));
 });
 
 const show = computed(() => form.txt_categorie === "Convocation - Invitation");
@@ -478,13 +488,7 @@ async function submit() {
                                             required
                                             id="txt_agenttraiteur"
                                             v-model="form.txt_agenttraiteur"
-                                            :options="[
-                                                { value: 'Saliou FAYE', label: 'Saliou FAYE' },
-                                                { value: 'Moustapha Diop', label: 'Moustapha Diop' },
-                                                { value: 'Daouda Ndiaye', label: 'Daouda Ndiaye' },
-                                                { value: 'Abdoulaye Camara', label: 'Abdoulaye Camara' },
-                                                { value: 'Oumar Diop', label: 'Oumar Diop' },
-                                            ]"
+                                            :options="optionsAgents"
                                         />
                                         <BaseSelect 
                                             label="Caractères"

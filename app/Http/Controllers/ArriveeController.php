@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Arrivee; 
+use App\Models\Arrivee;
+use App\Services\AgentInscritService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;  
 use Illuminate\Support\Facades\Storage; 
@@ -10,6 +11,8 @@ use Illuminate\Support\Facades\Storage;
 
 class ArriveeController extends Controller
 {
+    public function __construct(private AgentInscritService $agents) {}
+
     /**
      * Display a listing of the resource.
      */
@@ -41,7 +44,9 @@ class ArriveeController extends Controller
     public function create()
     {
         //
-        return Inertia::render("arrivee/create");    
+        return Inertia::render('arrivee/create', [
+            'agents' => $this->agents->noms(),
+        ]);    
     }
 
     // Supprimer le fichier PDF
@@ -180,6 +185,7 @@ class ArriveeController extends Controller
 
         return Inertia::render('arrivee/editarrivee', [
             'arrivees' => $arrivees,
+            'agents' => $this->agents->noms(),
         ]);
     }
 

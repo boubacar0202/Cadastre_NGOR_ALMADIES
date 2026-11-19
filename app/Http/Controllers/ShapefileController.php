@@ -227,11 +227,14 @@ class ShapefileController extends Controller
                 'features' => $features,
             ];
 
-            $srid = $this->sridSource($request, "{$tmpPath}/shape.prj");
-            $this->verifierCoordonneesSource($features, $srid);
-            if ($srid !== '4326') {
-                $this->reprojectAllFeatures($geojson['features'], $srid);
+            $srid = (string) $request->input('srid', '4326');
+            $firstCoord = $this->getFirstCoordinate($features);
+            $needsReprojection = in_array($srid, ['32628', '2154'], true)
+                || ($firstCoord && (abs($firstCoord[0]) > 180 || abs($firstCoord[1]) > 90));
+            if ($needsReprojection) {
+                $this->reprojectAllFeatures($geojson['features'], '32628');
             }
+            $this->fermerAnneauxOuverts($geojson['features']);
 
             return $geojson;
         } finally {
@@ -324,10 +327,14 @@ class ShapefileController extends Controller
         if (!is_array($coords)) return $coords;
 
         if (isset($coords[0]) && is_numeric($coords[0])) {
-            return [
-                round((float) $coords[0], 8),
-                round((float) $coords[1], 8),
-            ];
+            $x = (float) $coords[0];
+            $y = (float) $coords[1];
+
+            if (abs($x) > 180 || abs($y) > 90) {
+                [$x, $y] = $this->utm28nToWgs84($x, $y);
+            }
+
+            return [round($x, 8), round($y, 8)];
         }
 
         return array_map(fn($c) => $this->cleanCoordinates($c), $coords);
@@ -363,6 +370,41 @@ class ShapefileController extends Controller
             if ($pt) return $pt;
         }
         return null;
+    }
+
+    private function fermerAnneauxOuverts(array &$features): void
+    {
+        foreach ($features as &$feature) {
+            $type = $feature['geometry']['type'] ?? '';
+            if ($type === 'Polygon') {
+                $feature['geometry']['coordinates'] = $this->fermerRings($feature['geometry']['coordinates']);
+            } elseif ($type === 'MultiPolygon') {
+                $feature['geometry']['coordinates'] = array_map(
+                    fn ($polygone) => $this->fermerRings($polygone),
+                    $feature['geometry']['coordinates']
+                );
+            }
+        }
+        unset($feature);
+    }
+
+    private function fermerRings(array $rings): array
+    {
+        return array_map(function ($ring) {
+            if (!is_array($ring) || count($ring) < 3) {
+                return $ring;
+            }
+            $premier = $ring[0];
+            $dernier = $ring[array_key_last($ring)];
+            if (!is_array($premier) || !isset($premier[0], $dernier[0])) {
+                return $ring;
+            }
+            if ($premier[0] != $dernier[0] || $premier[1] != $dernier[1]) {
+                $ring[] = $premier;
+            }
+
+            return $ring;
+        }, $rings);
     }
 
     /**

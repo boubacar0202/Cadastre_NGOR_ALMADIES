@@ -929,7 +929,7 @@ function ajouterCoucheShapefile(shp, data, textes) {
         pointToLayer: isPointLayer
             ? (feature, latlng) => marqueurEntite(feature, latlng, shp, enAvant, textes)
             : undefined,
-        style: styleShapefile(shp, enAvant),
+        style: (feature) => styleShapefile(shp, enAvant, feature),
         onEachFeature: (feature, lyr) => {
             const index = feature._indexAffichage ?? featureIndex++;
             lyr.on('click', (e) => {
@@ -984,7 +984,7 @@ async function chargerShapefiles() {
     visibles.forEach((shp) => {
         const layer = couchesShapefile.get(shp.id);
         if (!layer || typeof layer.setStyle !== 'function') return;
-        layer.setStyle(styleShapefile(shp, featuredShapefileId.value === shp.id));
+        layer.setStyle((feature) => styleShapefile(shp, featuredShapefileId.value === shp.id, feature));
     });
 
     const manquants = visibles.filter((shp) => !couchesShapefile.has(shp.id));
@@ -1005,6 +1005,7 @@ async function chargerShapefiles() {
                 return;
             }
             if (!shapefileVisibleAuZoom(shp, map.value.getZoom())) return;
+            releverNicadsDoublon(shp, brut.features);
             const affichage = preparerAffichage(shp, brut);
             if (!affichage.data.features.length) return;
             ajouterCoucheShapefile(shp, affichage.data, affichage.textes);
@@ -1107,10 +1108,39 @@ function couleurForte(shp) {
     return COULEURS_FORTES[shp?.type_entite] || shp?.couleur || '#052e16';
 }
 
-function styleShapefile(shp, enAvant) {
+const nicadsDoublonParCouche = new Map();
+
+function nicadDe(feature) {
+    const proprietes = feature?.properties || {};
+    const cle = Object.keys(proprietes).find((nom) => String(nom).toLowerCase() === 'nicad');
+    return cle ? String(proprietes[cle] ?? '').trim() : '';
+}
+
+function releverNicadsDoublon(shp, features) {
+    const comptes = new Map();
+    (features || []).forEach((feature) => {
+        if (!estPolygone(feature)) return;
+        const nicad = nicadDe(feature);
+        if (!nicad) return;
+        comptes.set(nicad, (comptes.get(nicad) || 0) + 1);
+    });
+    const doublons = new Set();
+    comptes.forEach((nombre, nicad) => {
+        if (nombre > 1) doublons.add(nicad);
+    });
+    nicadsDoublonParCouche.set(shp.id, doublons);
+}
+
+function nicadEnDoublon(shp, feature) {
+    const nicad = nicadDe(feature);
+    return !!nicad && !!nicadsDoublonParCouche.get(shp?.id)?.has(nicad);
+}
+
+function styleShapefile(shp, enAvant, feature = null) {
     const meta = metaTypeEntite(shp?.type_entite);
-    const couleur = couleurForte(shp);
-    const remplissage = estCoucheDoublon(shp)
+    const doublon = estCoucheDoublon(shp) || (feature ? nicadEnDoublon(shp, feature) : false);
+    const couleur = doublon ? '#b91c1c' : couleurForte(shp);
+    const remplissage = doublon
         ? '#b91c1c'
         : (shp?.type_entite === 'limite_parcelle' ? '#22c55e' : couleur);
     return {

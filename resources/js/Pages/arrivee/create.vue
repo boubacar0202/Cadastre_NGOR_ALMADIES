@@ -4,13 +4,24 @@ import { Head, useForm, router } from "@inertiajs/vue3";  // Utilisation de rout
 import MazBtn from "maz-ui/components/MazBtn"; 
 import BaseInput from "@/Components/BaseInput.vue";
 import BaseSelect from "@/Components/BaseSelect.vue";
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import axios from "axios";
 import { toast } from "@/Components/AppToast";  
 import DefaultLayout from "@/Layouts/DefaultLayout.vue";
 
 // Configuration du layout
-defineOptions({ layout: DefaultLayout }); 
+defineOptions({ layout: DefaultLayout });
+
+const { agents } = defineProps({
+    agents: { type: Array, default: () => [] },
+});
+
+const optionsAgents = computed(() =>
+    (agents || [])
+        .map((nom) => String(nom).trim())
+        .filter(Boolean)
+        .map((nom) => ({ value: nom, label: nom }))
+); 
 
 // ════════════════════════════════════════════
 // 1. État local (fichier, date, etc.)
@@ -528,13 +539,7 @@ const submitForm = function () {
                                             required
                                             id="txt_agenttraiteur"
                                             v-model="form.txt_agenttraiteur"
-                                            :options="[
-                                                { value: 'Saliou FAYE', label: 'Saliou FAYE' },
-                                                { value: 'Moustapha Diop', label: 'Moustapha Diop' },
-                                                { value: 'Daouda Ndiaye', label: 'Daouda Ndiaye' },
-                                                { value: 'Abdoulaye Camara', label: 'Abdoulaye Camara' },
-                                                { value: 'Oumar Diop', label: 'Oumar Diop' },
-                                            ]"
+                                            :options="optionsAgents"
                                         />
                                         <BaseSelect 
                                             label="Caractères"
