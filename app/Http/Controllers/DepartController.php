@@ -6,6 +6,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB; 
 use App\Models\Depart;
 use App\Models\Arrivee;
+use App\Models\Lotissement;
+use App\Rules\LotissementConnu;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
@@ -27,7 +29,9 @@ class DepartController extends Controller
     public function create()
     {
         //
-        return Inertia::render("depart/create");
+        return Inertia::render("depart/create", [
+            'lotissements' => Lotissement::pourSelection(),
+        ]);
     }
 
     /**
@@ -137,6 +141,19 @@ class DepartController extends Controller
     }
     
 
+    private function lotissementArriveeLiee(mixed $reference): ?string
+    {
+        if (! is_string($reference) || $reference === '') {
+            return null;
+        }
+
+        $lotissement = Arrivee::query()
+            ->where('txt_reference', $reference)
+            ->value('txt_lotissement');
+
+        return is_string($lotissement) && $lotissement !== '' ? $lotissement : null;
+    }
+
     private function normaliserChampsNullable(Request $request): void
     {
         $vides = [];
@@ -202,7 +219,9 @@ class DepartController extends Controller
             'txt_numTitreFonciercd'         => 'nullable|string|max:255',
             'txt_numTitreMerecd'            => 'nullable|string|max:20',
             'txt_NICADcd'                   => 'nullable|string|max:25',
-            'txt_lotissementcd'             => 'nullable|string|max:100',
+            'txt_lotissementcd'             => ['nullable', 'string', 'max:255', new LotissementConnu([
+                $this->lotissementArriveeLiee($request->input('txt_referencecourierarriveecd')),
+            ])],
 
             'txt_objetcd'                   => 'nullable|string|max:255',
             'txt_destinatairecd'            => 'required|string|max:255',
@@ -291,7 +310,8 @@ class DepartController extends Controller
         $departs = Depart::findOrFail($id); 
  
         return Inertia::render('depart/editdepart', [
-            'departs' => $departs,   
+            'departs' => $departs,
+            'lotissements' => Lotissement::pourSelection(),
         ]);
     }
 
@@ -327,7 +347,10 @@ class DepartController extends Controller
             'txt_numTitreFonciercd' => 'nullable|string|max:255',
             'txt_numTitreMerecd' => 'nullable|string|max:20',
             'txt_NICADcd' => 'nullable|string|max:25',
-            'txt_lotissementcd' => 'nullable|string|max:255',
+            'txt_lotissementcd' => ['nullable', 'string', 'max:255', new LotissementConnu([
+                $depart->txt_lotissementcd,
+                $this->lotissementArriveeLiee($request->input('txt_referencecourierarriveecd')),
+            ])],
             'txt_objetcd' => 'required|string|max:255',
             'txt_destinatairecd' => 'required|string|max:255',
             'dt_dateenvoicd' => 'required|date|before_or_equal:today',

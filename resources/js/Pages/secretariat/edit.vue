@@ -1251,13 +1251,13 @@ async function submit() {
         console.log("TOUT:", form.data());
 
         // 6. Mise à jour du terrain
-        await form.put(route("secretariat.update", terrain.id), { // ✅ await ajouté
-            preserveScroll: true,
+        await form.put(route("secretariat.update", terrain.id), {
+            preserveState: false,
 
             onSuccess: (page) => {
-                console.log("✅ Terrain mis à jour avec succès.", page);
                 toast.success(
-                    `Dossier ${form.txt_num_dossier} a été mis à jour avec succès.`
+                    page.props.flash?.success
+                        || `Dossier ${form.txt_num_dossier} a été mis à jour avec succès.`
                 );
             },
 

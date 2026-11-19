@@ -288,11 +288,12 @@ function valider(attribution) {
                                     <th class="px-3 py-2">Dossier</th>
                                     <th class="px-3 py-2">Traité le</th>
                                     <th class="px-3 py-2">État</th>
+                                    <th class="px-3 py-2"></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="traites.length === 0">
-                                    <td colspan="3" class="px-3 py-6 text-center">Aucun dossier traité pour le moment.</td>
+                                    <td colspan="4" class="px-3 py-6 text-center">Aucun dossier traité pour le moment.</td>
                                 </tr>
                                 <tr v-for="ligne in traites" :key="ligne.id">
                                     <td class="border-b px-3 py-3">
@@ -309,6 +310,14 @@ function valider(attribution) {
                                             {{ ligne.statut_libelle }}
                                         </span>
                                         <div v-if="ligne.signe_le" class="mt-1 text-xs">Signé le {{ ligne.signe_le }}</div>
+                                    </td>
+                                    <td class="border-b px-3 py-3 text-right">
+                                        <Link
+                                            :href="route('traitementDossier.show', ligne.id)"
+                                            class="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 px-3 py-1.5 text-sm font-semibold text-primary-txt transition hover:bg-primary hover:text-white"
+                                        >
+                                            Visualiser
+                                        </Link>
                                     </td>
                                 </tr>
                             </tbody>

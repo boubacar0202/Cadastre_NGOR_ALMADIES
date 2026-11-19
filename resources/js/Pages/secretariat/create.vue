@@ -2,15 +2,13 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue"; 
 import BaseInput from "@/Components/BaseInput.vue";
 import BaseSelect from "@/Components/BaseSelect.vue";
-import { Head, useForm } from "@inertiajs/vue3";
+import { Head, router, useForm, usePage } from "@inertiajs/vue3";
 import MazBtn from "maz-ui/components/MazBtn";
 import MazRadio from "maz-ui/components/MazRadio";
 import { onMounted, ref, watch, watchEffect, computed } from "vue";
 import axios from "axios";
 import { toast } from "@/Components/AppToast";  
 import DefaultLayout from "@/Layouts/DefaultLayout.vue";
-import { Inertia } from '@inertiajs/inertia';
-import { usePage } from '@inertiajs/vue3'
 
 const page = usePage() 
 
@@ -486,17 +484,18 @@ const submitForm = function () {
 
     // 5. Formulaire Laravel
     form.post(route('secretariat.store'), {
-        onSuccess: (page) => { 
-            toast.success(page.props.flash?.success || "✅ Dossier enregistré sous le numéro : " + form.txt_num_dossier + " !");
-            Inertia.visit(route("secretariat.create"), { replace: true });
+        preserveState: false,
+        onSuccess: (page) => {
+            toast.success(page.props.flash?.success || "Dossier enregistré.");
+            router.visit(route("secretariat.create"), {
+                replace: true,
+                preserveState: false,
+            });
         },
         onError: (errors) => {
             const messages = Object.values(errors);
             toast.error(messages.join('\n'));
         },
-        onFinish: () => {
-            console.log("🟡 Requête terminée");
-        }
     }); 
 };
 

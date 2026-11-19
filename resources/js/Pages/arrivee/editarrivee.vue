@@ -14,9 +14,10 @@ defineOptions({ layout: DefaultLayout });
 
 const today = new Date().toISOString().split("T")[0];
 
-const { arrivees, agents } = defineProps({
+const { arrivees, agents, lotissements } = defineProps({
     arrivees: Object,
     agents: { type: Array, default: () => [] },
+    lotissements: { type: Array, default: () => [] },
 });
 
 const existingPdf = ref(arrivees?.fichierPDF || null);
@@ -37,6 +38,9 @@ const form = useForm({
     txt_prenomNom: arrivees?.txt_prenomNom || '',
     txt_numLot: arrivees?.txt_numLot || '',
     txt_superficie: arrivees?.txt_superficie || '',
+    txt_numTitreMere: arrivees?.txt_numTitreMere || '',
+    txt_numTitreFoncier: arrivees?.txt_numTitreFoncier || '',
+    txt_NICAD: arrivees?.txt_NICAD || '',
     txt_numTF: arrivees?.txt_numTF || '',
     txt_lotissement: arrivees?.txt_lotissement || '',
     dt_date: arrivees?.dt_date || '',
@@ -197,6 +201,7 @@ async function submit() {
         formData.append('txt_numTitreFoncier', form.txt_numTitreFoncier);
         formData.append('txt_numTitreMere', form.txt_numTitreMere);
         formData.append('txt_lotissement', form.txt_lotissement);
+        formData.append('txt_NICAD', form.txt_NICAD ?? '');
         formData.append('dt_date', form.dt_date);
         formData.append('txt_heure', form.txt_heure);
         formData.append('txt_lieu', form.txt_lieu);
@@ -422,15 +427,19 @@ async function submit() {
                                             class="sm:col-span-1"
                                             label="Lotissement"
                                             name="txt_lotissement"
-                                            autocomplete="on"
                                             v-model="form.txt_lotissement"
+                                            :options="lotissements"
+                                            optionLabel="txt_denomination"
+                                            optionValue="txt_denomination"
                                         />
                                        <BaseInput
                                             v-if="showDemandeServices"
                                             class="sm:col-span-2"
                                             label="NICAD"
                                             name="txt_NICAD"
-                                            type="number"
+                                            type="text"
+                                            maxlength="255"
+                                            placeholder="Un ou deux NICAD, séparés par /"
                                             autocomplete="off"
                                             v-model="form.txt_NICAD"
                                         />

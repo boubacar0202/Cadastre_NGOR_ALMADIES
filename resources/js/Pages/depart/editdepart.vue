@@ -27,6 +27,10 @@ const props = defineProps({
         type: Object,
         default: () => ({})
     },
+    lotissements: {
+        type: Array,
+        default: () => []
+    },
     arrivees: {
         type: Array,
         default: () => []
@@ -35,6 +39,7 @@ const props = defineProps({
 // Extraction sécurisée des données
 const departs = props.departs || {};
 const arrivees = props.arrivees || [];
+const lotissements = props.lotissements || [];
 
 // Refs
 const references = ref([]);
@@ -768,13 +773,15 @@ async function submit() {
                                         v-model="form.txt_numTitreMerecd"
                                     />   
 
-                                    <BaseInput  
+                                    <BaseSelect
                                         v-if="showBail"
-                                        class="sm:col-span-2"
+                                        wrapperClass="sm:col-span-2"
                                         label="Lotissement"
-                                        name="txt_lotissementcd"  
-                                        autocomplete="on"  
+                                        name="txt_lotissementcd"
                                         v-model="form.txt_lotissementcd"
+                                        :options="lotissements"
+                                        optionLabel="txt_denomination"
+                                        optionValue="txt_denomination"
                                     />
                                     
                                     <BaseInput

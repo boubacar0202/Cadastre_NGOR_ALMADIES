@@ -11,6 +11,10 @@ import PageFrame from "@/Components/PageFrame.vue";
 
 defineOptions({ layout: DefaultLayout });
 
+const { lotissements } = defineProps({
+    lotissements: { type: Array, default: () => [] },
+});
+
 const CATEGORIES_LIEES = ["Reponse à un Courrier arrivé", "Dossier Retourné", "Dossier Retourne"];
 
 const objetsAvecBail = new Set([
@@ -608,13 +612,14 @@ const submitForm = function () {  // Ajoutez `async` ici
                                             v-model="form.txt_superficiecd"
                                         />   
 
-                                        <BaseInput  
-                                            v-if="showBail" 
-                                            class="sm:col-span-1"
+                                        <BaseSelect
+                                            v-if="showBail"
                                             label="Lotissement"
-                                            name="txt_lotissementcd"  
-                                            autocomplete="on"  
+                                            name="txt_lotissementcd"
                                             v-model="form.txt_lotissementcd"
+                                            :options="lotissements"
+                                            optionLabel="txt_denomination"
+                                            optionValue="txt_denomination"
                                         />    
  
                                         <BaseInput 

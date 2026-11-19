@@ -12,8 +12,9 @@ import DefaultLayout from "@/Layouts/DefaultLayout.vue";
 // Configuration du layout
 defineOptions({ layout: DefaultLayout });
 
-const { agents } = defineProps({
+const { agents, lotissements } = defineProps({
     agents: { type: Array, default: () => [] },
+    lotissements: { type: Array, default: () => [] },
 });
 
 const optionsAgents = computed(() =>
@@ -473,15 +474,19 @@ const submitForm = function () {
                                             class="sm:col-span-1"
                                             label="Lotissement"
                                             name="txt_lotissement"
-                                            autocomplete="on"
                                             v-model="form.txt_lotissement"
+                                            :options="lotissements"
+                                            optionLabel="txt_denomination"
+                                            optionValue="txt_denomination"
                                         />
                                        <BaseInput
                                             v-if="showDemandeServices"
                                             class="sm:col-span-2"
                                             label="NICAD"
                                             name="txt_NICAD"
-                                            type="number"
+                                            type="text"
+                                            maxlength="255"
+                                            placeholder="Un ou deux NICAD, séparés par /"
                                             autocomplete="off"
                                             v-model="form.txt_NICAD"
                                         />

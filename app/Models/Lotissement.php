@@ -35,4 +35,13 @@ class Lotissement extends Model
         return $this->belongsTo(Commune::class, 'slt_commune');
     }
 
+    public static function pourSelection()
+    {
+        return static::query()
+            ->whereNotNull('txt_denomination')
+            ->where('txt_denomination', '!=', '')
+            ->orderBy('txt_denomination')
+            ->get(['id', 'txt_denomination']);
+    }
+
 }
