@@ -1231,113 +1231,147 @@ export function demandeurLettreCic({ origine, reference, date, notaire }) {
     return '';
 }
 
+const VERT_TABLEAU_CIC = [197, 224, 179];
+
+export function pagesDuDocument(commandes) {
+    const pages = [];
+    let page = { w: 210, h: 297, commandes: [] };
+    commandes.forEach((commande) => {
+        if (commande.type !== 'page') {
+            page.commandes.push(commande);
+            return;
+        }
+        if (page.commandes.length) pages.push(page);
+        page = { w: commande.w || 210, h: commande.h || 297, commandes: [] };
+    });
+    if (page.commandes.length || pages.length === 0) pages.push(page);
+    return pages;
+}
+
 export function commandesLettreCic({ bureau, infos = {}, superficieM2, demandeur, signataire = '' }) {
-    const commandes = [];
+    const commandes = [{ type: 'page', w: 297, h: 210 }];
     const ajouter = (commande) => commandes.push(commande);
     const texte = (x, y, contenu, size = 2.5, weight = 'normal', anchor = 'start') => {
         if (!String(contenu ?? '').trim()) return;
         ajouter({ type: 'text', x, y, text: contenu, size, weight, anchor });
     };
-    const axe = 42;
-    texte(axe, 10, 'RÉPUBLIQUE DU SÉNÉGAL', 3.2, 'bold', 'middle');
-    texte(axe, 14, 'Un Peuple – Un But – Une Foi', 1.9, 'normal', 'middle');
-    ajouter({ type: 'line', x1: 28, y1: 16, x2: 56, y2: 16, width: 0.2 });
-    texte(axe, 19, 'MINISTÈRE DE L\'ECONOMIE', 2.8, 'bold', 'middle');
-    texte(axe, 23, 'DES FINANCES ET DU PLAN', 2.8, 'bold', 'middle');
-    ajouter({ type: 'image', src: '/logo-dgid.png', x: 22, y: 25, w: 40, h: 9 });
-    texte(axe, 37, `CENTRE DES SERVICES FISCAUX DE ${valeurOuVide(bureau).toUpperCase()}`, 1.9, 'bold', 'middle');
-    texte(axe, 41, 'BUREAU DU CADASTRE', 2.2, 'bold', 'middle');
-    texte(axe, 46, 'M.A.L', 2.2, 'bold', 'middle');
-    texte(12, 54, 'N° ........................ MFB/DGID/DSF/CSF NGA/ BCAD', 2.2, 'normal', 'start');
-    texte(12, 60, 'N° ........................ CAD/BC.NGA', 2.2, 'normal', 'start');
+    const souligne = (x, y, contenu, size, weight, anchor) => {
+        texte(x, y, contenu, size, weight, anchor);
+        const largeur = largeurTexte(contenu, size, weight === 'bold');
+        const debut = anchor === 'end' ? x - largeur : anchor === 'middle' ? x - largeur / 2 : x;
+        ajouter({ type: 'line', x1: debut, y1: y + 1.5, x2: debut + largeur, y2: y + 1.5, width: 0.25 });
+    };
+    const axe = 40;
+    texte(axe, 10, 'RÉPUBLIQUE DU SÉNÉGAL', 3, 'bold', 'middle');
+    texte(axe, 14, 'Un Peuple – Un But – Une Foi', 1.8, 'normal', 'middle');
+    ajouter({ type: 'line', x1: 24, y1: 16, x2: 56, y2: 16, width: 0.2 });
+    texte(axe, 19, 'MINISTÈRE DE L\'ECONOMIE', 2.6, 'bold', 'middle');
+    texte(axe, 23, 'DES FINANCES ET DU PLAN', 2.6, 'bold', 'middle');
+    ajouter({ type: 'image', src: '/logo-dgid.png', x: 20, y: 25, w: 40, h: 8 });
+    texte(axe, 36, `CENTRE DES SERVICES FISCAUX DE ${valeurOuVide(bureau).toUpperCase()}`, 1.7, 'bold', 'middle');
+    texte(axe, 40, 'BUREAU DU CADASTRE', 2, 'bold', 'middle');
+    texte(287, 12, 'N° ........................ MFB/DGID/DSF/CSF NGA/ BCAD', 2.1, 'normal', 'end');
+    texte(287, 18, 'N° ........................ CAD/BC.NGA', 2.1, 'normal', 'end');
 
     const aujourd = new Date();
     const deux = (nombre) => String(nombre).padStart(2, '0');
     const conformite = `${deux(aujourd.getDate())}/${deux(aujourd.getMonth() + 1)}/${aujourd.getFullYear()}`;
-    texte(105, 72, 'CERTIFICAT D\'IDENTIFICATION CADASTRAL (CIC)', 3.6, 'bold', 'middle');
-    texte(105, 78, `Conforme à la documentation cadastrale à la date du ${conformite}`, 2.4, 'normal', 'middle');
-    texte(105, 84, 'Validité six mois à partir de cette date', 2.4, 'normal', 'middle');
-    texte(12, 94, `Demandeur : ${demandeur}`, 2.5, 'normal', 'start');
+    texte(148, 50, 'CERTIFICAT D\'IDENTIFICATION CADASTRAL (CIC)', 4, 'bold', 'middle');
+    texte(148, 57, `Conforme à la documentation cadastrale à la date du ${conformite}`, 2.6, 'normal', 'middle');
+    texte(148, 63, 'Validité six mois à partir de cette date', 2.6, 'normal', 'middle');
+    texte(148, 70, `Demandeur : ${demandeur}`, 2.6, 'normal', 'middle');
 
     const region = valeurOuVide(infos.region);
     const departement = valeurOuVide(infos.departement);
     const arrondissement = valeurOuVide(infos.arrondissement);
     const commune = valeurOuVide(infos.commune);
-    texte(12, 102, `Région : ${region}`, 2.3, 'normal', 'start');
-    texte(70, 102, `Département : ${departement}`, 2.3, 'normal', 'start');
-    texte(12, 108, `Arrond / Com / Ville : ${[arrondissement, commune].filter(Boolean).join(' / ')}`, 2.3, 'normal', 'start');
-    texte(140, 108, `CA / CR : ${commune}`, 2.3, 'normal', 'start');
-
     const section = codeCadastre(infos.section, 3);
     const parcelle = codeCadastre(infos.parcelle, 5);
     const metres = Math.round(Number(superficieM2));
     const superficie = Number.isFinite(metres) && metres > 0 ? String(metres) : '';
     const nicad = formaterNicad(infos.nicad);
-    const proprietes = [section, parcelle, valeurOuVide(infos.lot), valeurOuVide(infos.titre), superficie, commune, nicad, ''];
-    const colonnes = [
-        ['Section', 18],
-        ['N° Plle', 20],
-        ['N° du lot', 24],
-        ['N° TF', 28],
-        ['Sup (m²)', 18],
-        ['Situation', 24],
-        ['NICAD', 34],
-        ['Observations', 20],
+    const gauche = 10;
+    const proprietes = [
+        ['Section', 14, section],
+        ['N° Plle', 16, parcelle],
+        ['N° du lot', 18, valeurOuVide(infos.lot)],
+        ['N° TF', 26, valeurOuVide(infos.titre)],
+        ['Sup (m²)', 16, superficie],
+        ['Situation', 22, commune],
+        ['NICAD', 34, nicad],
+        ['Observations', 16, ''],
     ];
-    texte(12, 118, 'DESIGNATION DES PROPRIETES', 2.6, 'bold', 'start');
-    let x = 12;
-    colonnes.forEach(([libelle, largeur]) => {
-        ajouter({ type: 'rect', x, y: 122, w: largeur, h: 10, width: 0.2 });
-        texte(x + largeur / 2, 127, libelle, 1.7, 'bold', 'middle');
-        x += largeur;
-    });
-    x = 12;
-    colonnes.forEach(([, largeur], index) => {
-        ajouter({ type: 'rect', x, y: 132, w: largeur, h: 10, width: 0.2 });
-        texte(x + largeur / 2, 137, proprietes[index], 1.7, 'normal', 'middle');
-        x += largeur;
-    });
-
     const nouvelle = [
-        ['N° Plan de morcellement', 46, ''],
-        ['N° Section', 28, section],
-        ['N° Plle', 28, parcelle],
-        ['Contenance cadastrale', 42, ''],
-        ['NICAD CREE', 42, nicad],
+        ['N° Plan de morcellement', 26, ''],
+        ['N° Section', 16, section],
+        ['N° Plle', 16, parcelle],
+        ['Contenance cadastrale', 24, ''],
+        ['NICAD CREE', 33, nicad],
     ];
-    texte(12, 152, 'DESIGNATION NOUVELLE', 2.6, 'bold', 'start');
-    x = 12;
-    nouvelle.forEach(([libelle, largeur]) => {
-        ajouter({ type: 'rect', x, y: 156, w: largeur, h: 12, width: 0.2 });
-        texte(x + largeur / 2, 162, libelle, 1.7, 'bold', 'middle');
-        x += largeur;
-    });
-    x = 12;
-    nouvelle.forEach(([, largeur, valeur]) => {
-        ajouter({ type: 'rect', x, y: 168, w: largeur, h: 10, width: 0.2 });
-        texte(x + largeur / 2, 173, valeur, 1.8, 'normal', 'middle');
-        x += largeur;
-    });
+    const largeurProprietes = proprietes.reduce((somme, colonne) => somme + colonne[1], 0);
+    const largeurNouvelle = nouvelle.reduce((somme, colonne) => somme + colonne[1], 0);
+    const ligneVerte = (x, y, w, h) => {
+        ajouter({ type: 'rect', x, y, w, h, fill: VERT_TABLEAU_CIC, width: 0.2 });
+    };
+    ligneVerte(gauche, 76, largeurProprietes + largeurNouvelle, 8);
+    texte(14, 80, `Région : ${region}`, 2.2, 'bold', 'start');
+    texte(78, 80, `Département : ${departement}`, 2.2, 'bold', 'start');
+    texte(148, 80, `Arrond / Com / Ville : ${[arrondissement, commune].filter(Boolean).join(' / ')}`, 2.2, 'bold', 'start');
+    texte(250, 80, `CA / CR : ${commune}`, 2.2, 'bold', 'start');
+    ligneVerte(gauche, 84, largeurProprietes, 8);
+    ligneVerte(gauche + largeurProprietes, 84, largeurNouvelle, 8);
+    texte(gauche + largeurProprietes / 2, 88, 'DESIGNATION DES PROPRIETES', 2.3, 'bold', 'middle');
+    texte(gauche + largeurProprietes + largeurNouvelle / 2, 88, 'DESIGNATION NOUVELLE', 2.3, 'bold', 'middle');
 
-    texte(12, 250, 'P.J : Le plan du lot concerné.', 2.5, 'normal', 'start');
-    texte(198, 250, 'LE CHEF DU BUREAU', 2.6, 'bold', 'end');
-    texte(198, 262, valeurOuVide(signataire), 2.5, 'normal', 'end');
+    const entete = (colonnes, x, y) => {
+        colonnes.forEach(([libelle, largeur]) => {
+            ajouter({ type: 'rect', x, y, w: largeur, h: 12, fill: [255, 255, 255], width: 0.2 });
+            const lignes = libelle === 'N° Plan de morcellement'
+                ? ['N° Plan de', 'morcellement']
+                : libelle === 'Contenance cadastrale'
+                    ? ['Contenance', 'cadastrale']
+                    : [libelle];
+            lignes.forEach((ligne, index) => {
+                texte(x + largeur / 2, y + (lignes.length === 1 ? 6 : 4 + index * 4), ligne, 1.6, 'bold', 'middle');
+            });
+            x += largeur;
+        });
+    };
+    const valeurs = (colonnes, x, y) => {
+        colonnes.forEach(([, largeur, valeur]) => {
+            ajouter({ type: 'rect', x, y, w: largeur, h: 8, fill: [255, 255, 255], width: 0.2 });
+            texte(x + largeur / 2, y + 4, valeur, 1.6, 'normal', 'middle');
+            x += largeur;
+        });
+    };
+    entete(proprietes, gauche, 92);
+    entete(nouvelle, gauche + largeurProprietes, 92);
+    valeurs(proprietes, gauche, 104);
+    valeurs(nouvelle, gauche + largeurProprietes, 104);
+
+    souligne(gauche, 122, 'P.J : Le plan du lot concerné.', 2.5, 'bold', 'start');
+    souligne(gauche + largeurProprietes + largeurNouvelle, 122, 'LE CHEF DU BUREAU', 2.5, 'bold', 'end');
+    texte(gauche + largeurProprietes + largeurNouvelle, 130, valeurOuVide(signataire), 2.4, 'normal', 'end');
     return commandes;
 }
 
 export async function telechargerExtrait(commandes, fichier) {
     const { jsPDF } = await import('jspdf');
-    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pages = pagesDuDocument(commandes);
+    const premiere = pages[0];
+    const doc = new jsPDF({
+        unit: 'mm',
+        format: 'a4',
+        orientation: premiere.w > premiere.h ? 'landscape' : 'portrait',
+    });
     const images = new Map();
     for (const commande of commandes) {
         if (commande.type !== 'image' || images.has(commande.src)) continue;
         images.set(commande.src, await chargerImage(commande.src));
     }
-    commandes.forEach((commande) => {
-        if (commande.type === 'page') {
-            doc.addPage();
-            return;
-        }
+    pages.forEach((page, index) => {
+        if (index > 0) doc.addPage('a4', page.w > page.h ? 'landscape' : 'portrait');
+        page.commandes.forEach((commande) => {
         if (commande.type === 'image') {
             const source = images.get(commande.src);
             if (source) doc.addImage(source, source.includes('image/png') ? 'PNG' : 'JPEG', commande.x, commande.y, commande.w, commande.h);
@@ -1388,6 +1422,7 @@ export async function telechargerExtrait(commandes, fichier) {
                 angle: -(commande.rotation || 0),
             });
         }
+        });
     });
     doc.save(fichier);
 }

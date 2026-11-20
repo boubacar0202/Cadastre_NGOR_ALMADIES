@@ -1753,7 +1753,7 @@ async function validerEchelles() {
                 }),
                 signataire: props.signataireExtrait,
             });
-            commandes = [...lettre, { type: 'page' }, ...commandes];
+            commandes = [...lettre, { type: 'page', w: 210, h: 297 }, ...commandes];
         }
         if (!commandes) {
             erreurExtrait.value = 'Cette parcelle n’a pas de géométrie.';
