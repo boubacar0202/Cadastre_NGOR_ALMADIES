@@ -49,10 +49,18 @@ class HandleInertiaRequests extends Middleware
                     return 0;
                 }
 
-                return AttributionDossier::query()
-                    ->where('statut', AttributionDossier::STATUT_ATTRIBUE)
-                    ->where('user_id', $user->id)
-                    ->count();
+                $estAdmin = method_exists($user, 'roleEffectif')
+                    ? $user->roleEffectif() === 'admin'
+                    : $user->role === 'admin';
+
+                $query = AttributionDossier::query()
+                    ->where('statut', AttributionDossier::STATUT_ATTRIBUE);
+
+                if (! $estAdmin) {
+                    $query->where('user_id', $user->id);
+                }
+
+                return $query->count();
             },
             'chatUsers' => function () use ($request) {
                 $user = $request->user();
