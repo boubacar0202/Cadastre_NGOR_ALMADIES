@@ -16,7 +16,7 @@ import proj4 from 'proj4';
 import { toast } from "@/Components/AppToast";
 import * as turf from '@turf/turf';
 import ExtraitPlanApercu from '@/Components/ExtraitPlanApercu.vue';
-import { anneauPrincipal, blocageExtrait, commandesCarte, commandesExtrait, nomFichierExtrait, porteeCarte, porteeSituation } from '@/utils/extraitPlan';
+import { anneauPrincipal, blocageExtrait, commandesCarte, commandesExtrait, commandesLettreCic, demandeurLettreCic, nomFichierExtrait, porteeCarte, porteeSituation } from '@/utils/extraitPlan';
 import axios from 'axios';
 import { usePage } from '@inertiajs/vue3';
 
@@ -88,6 +88,21 @@ const echelleSituationChoisie = ref(2000);
 const echelleParcelleChoisie = ref(500);
 const echelleUniqueChoisie = ref(1000);
 const coordonneesChoisies = ref(false);
+const lettreCic = ref(false);
+const origineLettreCic = ref('');
+const referenceDomainesCic = ref('');
+const dateDomainesCic = ref('');
+const nomNotaireCic = ref('');
+const lettreCicIncomplete = computed(() => {
+    if (planChoisi.value !== 'cic' || !lettreCic.value) return false;
+    if (origineLettreCic.value === 'domaines') {
+        return !referenceDomainesCic.value.trim() || !dateDomainesCic.value;
+    }
+    if (origineLettreCic.value === 'notaire') {
+        return !nomNotaireCic.value.trim();
+    }
+    return true;
+});
 const plansDisponibles = [
     { id: 'extrait', label: 'Extrait de plan' },
     { id: 'cic', label: 'Plan pour CIC' },
@@ -1624,6 +1639,11 @@ async function ouvrirExtraitPlan() {
     echelleParcelleChoisie.value = 500;
     echelleUniqueChoisie.value = 1000;
     coordonneesChoisies.value = false;
+    lettreCic.value = false;
+    origineLettreCic.value = '';
+    referenceDomainesCic.value = '';
+    dateDomainesCic.value = '';
+    nomNotaireCic.value = '';
     choixEchelleOuvert.value = true;
 }
 
@@ -1661,7 +1681,7 @@ async function validerEchelles() {
             echelleSituation,
             deuxEchelles ? null : porteeCarte(echelleParcelle, cadreCarte),
         );
-        const commandes = deuxEchelles ? commandesExtrait({
+        let commandes = deuxEchelles ? commandesExtrait({
             bureau: bureauExtrait.nom,
             ville: bureauExtrait.ville,
             infos: {
@@ -1709,6 +1729,32 @@ async function validerEchelles() {
             superficieM2,
             echelle: echelleParcelle,
         });
+        if (commandes && plan === 'cic' && lettreCic.value) {
+            const infoSelection = selectedInfo.value?.identification || {};
+            const lettre = commandesLettreCic({
+                bureau: bureauExtrait.nom,
+                infos: {
+                    region: data.region,
+                    departement: data.departement,
+                    arrondissement: data.arrondissement,
+                    commune: data.commune,
+                    titre: data.txt_num_titre,
+                    lot: data.txt_num_lotissement,
+                    nicad: data.txt_nicad,
+                    section: infoSelection.section || '',
+                    parcelle: infoSelection.parcelle || selectedInfo.value?.parcelle || '',
+                },
+                superficieM2,
+                demandeur: demandeurLettreCic({
+                    origine: origineLettreCic.value,
+                    reference: referenceDomainesCic.value,
+                    date: dateDomainesCic.value,
+                    notaire: nomNotaireCic.value,
+                }),
+                signataire: props.signataireExtrait,
+            });
+            commandes = [...lettre, { type: 'page' }, ...commandes];
+        }
         if (!commandes) {
             erreurExtrait.value = 'Cette parcelle n’a pas de géométrie.';
             return;
@@ -3483,7 +3529,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-if="choixEchelleOuvert" class="fixed inset-0 z-[3000] flex items-center justify-center bg-black/55 p-4">
-            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div class="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
                 <h2 class="text-lg font-semibold text-primary-txt">Choisir le plan</h2>
                 <p class="mt-1 text-sm text-primary-txt/70">Le plan d’abord, puis l’échelle. L’aperçu n’enregistre rien.</p>
                 <fieldset class="mt-5">
@@ -3499,6 +3545,35 @@ onBeforeUnmount(() => {
                     <input v-model="coordonneesChoisies" type="checkbox" class="text-primary">
                     Afficher les coordonnées des bornes
                 </label>
+                <div v-if="planChoisi === 'cic'" class="mt-5 space-y-3">
+                    <label class="flex items-center gap-2 text-sm text-primary-txt">
+                        <input v-model="lettreCic" type="checkbox" class="text-primary">
+                        Générer aussi la lettre CIC
+                    </label>
+                    <fieldset v-if="lettreCic" class="space-y-3 rounded-lg border border-primary/20 p-3">
+                        <legend class="px-1 text-sm font-semibold text-primary-txt">Demandeur</legend>
+                        <label class="flex items-center gap-2 text-sm text-primary-txt">
+                            <input v-model="origineLettreCic" type="radio" name="origine-lettre-cic" value="domaines" class="text-primary">
+                            Bureau des domaines
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-primary-txt">
+                            <input v-model="origineLettreCic" type="radio" name="origine-lettre-cic" value="notaire" class="text-primary">
+                            Notaire
+                        </label>
+                        <label v-if="origineLettreCic === 'domaines'" class="block text-sm text-primary-txt">
+                            Numéro de référence
+                            <input v-model="referenceDomainesCic" type="text" class="mt-1 w-full rounded-lg border px-2 py-1.5" placeholder="001051/BDNGA & GD">
+                        </label>
+                        <label v-if="origineLettreCic === 'domaines'" class="block text-sm text-primary-txt">
+                            Date de la référence
+                            <input v-model="dateDomainesCic" type="date" class="mt-1 w-full rounded-lg border px-2 py-1.5">
+                        </label>
+                        <label v-if="origineLettreCic === 'notaire'" class="block text-sm text-primary-txt">
+                            Nom du notaire
+                            <input v-model="nomNotaireCic" type="text" class="mt-1 w-full rounded-lg border px-2 py-1.5" placeholder="Mamadou Gaye Faye">
+                        </label>
+                    </fieldset>
+                </div>
                 <fieldset v-if="planChoisi === 'extrait' || planChoisi === 'morcellement'" class="mt-5">
                     <legend class="text-sm font-semibold text-primary-txt">Échelle pour plan de situation</legend>
                     <div class="mt-2 space-y-2">
@@ -3528,7 +3603,7 @@ onBeforeUnmount(() => {
                 </fieldset>
                 <div class="mt-6 flex items-center justify-end gap-3">
                     <button type="button" class="px-4 py-2 text-sm font-medium text-primary-txt bg-white border border-primary-only rounded-lg hover:bg-primary-form" @click="choixEchelleOuvert = false">Annuler</button>
-                    <button type="button" class="px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-dark" @click="validerEchelles">Valider</button>
+                    <button type="button" class="px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-dark disabled:opacity-50" :disabled="lettreCicIncomplete" @click="validerEchelles">Valider</button>
                 </div>
             </div>
         </div>

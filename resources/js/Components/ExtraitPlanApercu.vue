@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { telechargerExtrait } from '@/utils/extraitPlan';
 
 const props = defineProps({
@@ -10,6 +10,17 @@ const props = defineProps({
 const emit = defineEmits(['fermer']);
 const telechargement = ref(false);
 const erreur = ref('');
+const pages = computed(() => {
+    const groupes = [[]];
+    props.commandes.forEach((commande) => {
+        if (commande.type === 'page') {
+            groupes.push([]);
+            return;
+        }
+        groupes[groupes.length - 1].push(commande);
+    });
+    return groupes;
+});
 
 function points(commande) {
     return commande.points.map((point) => point.join(',')).join(' ');
@@ -46,8 +57,8 @@ async function telecharger() {
                 </button>
             </div>
             <p v-if="erreur" class="mb-2 text-sm text-white">{{ erreur }}</p>
-            <svg viewBox="0 0 210 297" class="w-full bg-white shadow-xl">
-                <template v-for="(commande, index) in commandes" :key="index">
+            <svg v-for="(page, numero) in pages" :key="numero" viewBox="0 0 210 297" class="mb-4 w-full bg-white shadow-xl">
+                <template v-for="(commande, index) in page" :key="index">
                     <rect
                         v-if="commande.type === 'rect'"
                         :x="commande.x"

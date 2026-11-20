@@ -1206,6 +1206,125 @@ export function commandesCarte({ type, bureau, infos, sujet, parcelles, superfic
     return commandes;
 }
 
+function codeCadastre(valeur, taille) {
+    const propre = valeurOuVide(valeur);
+    if (!/^\d+$/.test(propre)) return propre;
+    return propre.padStart(taille, '0');
+}
+
+function dateAdministrative(valeur) {
+    const morceaux = String(valeur || '').split('-').map((partie) => Number(partie));
+    if (morceaux.length !== 3 || morceaux.some((partie) => !Number.isFinite(partie) || partie <= 0)) return '';
+    const [annee, mois, jour] = morceaux;
+    const noms = ['JANV.', 'FEVR.', 'MARS', 'AVR.', 'MAI', 'JUIN', 'JUIL.', 'AOUT', 'SEPT.', 'OCT.', 'NOV.', 'DEC.'];
+    if (mois < 1 || mois > 12) return '';
+    return `${String(jour).padStart(2, '0')} ${noms[mois - 1]} ${annee}`;
+}
+
+export function demandeurLettreCic({ origine, reference, date, notaire }) {
+    if (origine === 'domaines') {
+        return `Chef du Bureau des Domaines (Ref.n°${valeurOuVide(reference)} du ${dateAdministrative(date)}).`;
+    }
+    if (origine === 'notaire') {
+        return `Me ${valeurOuVide(notaire).toUpperCase()}, Notaire.`;
+    }
+    return '';
+}
+
+export function commandesLettreCic({ bureau, infos = {}, superficieM2, demandeur, signataire = '' }) {
+    const commandes = [];
+    const ajouter = (commande) => commandes.push(commande);
+    const texte = (x, y, contenu, size = 2.5, weight = 'normal', anchor = 'start') => {
+        if (!String(contenu ?? '').trim()) return;
+        ajouter({ type: 'text', x, y, text: contenu, size, weight, anchor });
+    };
+    const axe = 42;
+    texte(axe, 10, 'RÉPUBLIQUE DU SÉNÉGAL', 3.2, 'bold', 'middle');
+    texte(axe, 14, 'Un Peuple – Un But – Une Foi', 1.9, 'normal', 'middle');
+    ajouter({ type: 'line', x1: 28, y1: 16, x2: 56, y2: 16, width: 0.2 });
+    texte(axe, 19, 'MINISTÈRE DE L\'ECONOMIE', 2.8, 'bold', 'middle');
+    texte(axe, 23, 'DES FINANCES ET DU PLAN', 2.8, 'bold', 'middle');
+    ajouter({ type: 'image', src: '/logo-dgid.png', x: 22, y: 25, w: 40, h: 9 });
+    texte(axe, 37, `CENTRE DES SERVICES FISCAUX DE ${valeurOuVide(bureau).toUpperCase()}`, 1.9, 'bold', 'middle');
+    texte(axe, 41, 'BUREAU DU CADASTRE', 2.2, 'bold', 'middle');
+    texte(axe, 46, 'M.A.L', 2.2, 'bold', 'middle');
+    texte(12, 54, 'N° ........................ MFB/DGID/DSF/CSF NGA/ BCAD', 2.2, 'normal', 'start');
+    texte(12, 60, 'N° ........................ CAD/BC.NGA', 2.2, 'normal', 'start');
+
+    const aujourd = new Date();
+    const deux = (nombre) => String(nombre).padStart(2, '0');
+    const conformite = `${deux(aujourd.getDate())}/${deux(aujourd.getMonth() + 1)}/${aujourd.getFullYear()}`;
+    texte(105, 72, 'CERTIFICAT D\'IDENTIFICATION CADASTRAL (CIC)', 3.6, 'bold', 'middle');
+    texte(105, 78, `Conforme à la documentation cadastrale à la date du ${conformite}`, 2.4, 'normal', 'middle');
+    texte(105, 84, 'Validité six mois à partir de cette date', 2.4, 'normal', 'middle');
+    texte(12, 94, `Demandeur : ${demandeur}`, 2.5, 'normal', 'start');
+
+    const region = valeurOuVide(infos.region);
+    const departement = valeurOuVide(infos.departement);
+    const arrondissement = valeurOuVide(infos.arrondissement);
+    const commune = valeurOuVide(infos.commune);
+    texte(12, 102, `Région : ${region}`, 2.3, 'normal', 'start');
+    texte(70, 102, `Département : ${departement}`, 2.3, 'normal', 'start');
+    texte(12, 108, `Arrond / Com / Ville : ${[arrondissement, commune].filter(Boolean).join(' / ')}`, 2.3, 'normal', 'start');
+    texte(140, 108, `CA / CR : ${commune}`, 2.3, 'normal', 'start');
+
+    const section = codeCadastre(infos.section, 3);
+    const parcelle = codeCadastre(infos.parcelle, 5);
+    const metres = Math.round(Number(superficieM2));
+    const superficie = Number.isFinite(metres) && metres > 0 ? String(metres) : '';
+    const nicad = formaterNicad(infos.nicad);
+    const proprietes = [section, parcelle, valeurOuVide(infos.lot), valeurOuVide(infos.titre), superficie, commune, nicad, ''];
+    const colonnes = [
+        ['Section', 18],
+        ['N° Plle', 20],
+        ['N° du lot', 24],
+        ['N° TF', 28],
+        ['Sup (m²)', 18],
+        ['Situation', 24],
+        ['NICAD', 34],
+        ['Observations', 20],
+    ];
+    texte(12, 118, 'DESIGNATION DES PROPRIETES', 2.6, 'bold', 'start');
+    let x = 12;
+    colonnes.forEach(([libelle, largeur]) => {
+        ajouter({ type: 'rect', x, y: 122, w: largeur, h: 10, width: 0.2 });
+        texte(x + largeur / 2, 127, libelle, 1.7, 'bold', 'middle');
+        x += largeur;
+    });
+    x = 12;
+    colonnes.forEach(([, largeur], index) => {
+        ajouter({ type: 'rect', x, y: 132, w: largeur, h: 10, width: 0.2 });
+        texte(x + largeur / 2, 137, proprietes[index], 1.7, 'normal', 'middle');
+        x += largeur;
+    });
+
+    const nouvelle = [
+        ['N° Plan de morcellement', 46, ''],
+        ['N° Section', 28, section],
+        ['N° Plle', 28, parcelle],
+        ['Contenance cadastrale', 42, ''],
+        ['NICAD CREE', 42, nicad],
+    ];
+    texte(12, 152, 'DESIGNATION NOUVELLE', 2.6, 'bold', 'start');
+    x = 12;
+    nouvelle.forEach(([libelle, largeur]) => {
+        ajouter({ type: 'rect', x, y: 156, w: largeur, h: 12, width: 0.2 });
+        texte(x + largeur / 2, 162, libelle, 1.7, 'bold', 'middle');
+        x += largeur;
+    });
+    x = 12;
+    nouvelle.forEach(([, largeur, valeur]) => {
+        ajouter({ type: 'rect', x, y: 168, w: largeur, h: 10, width: 0.2 });
+        texte(x + largeur / 2, 173, valeur, 1.8, 'normal', 'middle');
+        x += largeur;
+    });
+
+    texte(12, 250, 'P.J : Le plan du lot concerné.', 2.5, 'normal', 'start');
+    texte(198, 250, 'LE CHEF DU BUREAU', 2.6, 'bold', 'end');
+    texte(198, 262, valeurOuVide(signataire), 2.5, 'normal', 'end');
+    return commandes;
+}
+
 export async function telechargerExtrait(commandes, fichier) {
     const { jsPDF } = await import('jspdf');
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
@@ -1215,6 +1334,10 @@ export async function telechargerExtrait(commandes, fichier) {
         images.set(commande.src, await chargerImage(commande.src));
     }
     commandes.forEach((commande) => {
+        if (commande.type === 'page') {
+            doc.addPage();
+            return;
+        }
         if (commande.type === 'image') {
             const source = images.get(commande.src);
             if (source) doc.addImage(source, source.includes('image/png') ? 'PNG' : 'JPEG', commande.x, commande.y, commande.w, commande.h);
