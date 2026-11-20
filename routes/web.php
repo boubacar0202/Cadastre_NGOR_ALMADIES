@@ -5,6 +5,7 @@ use App\Models\Terrain;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\ArriveeController;
+use App\Http\Controllers\CourrierPdfController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\InstanceController;
 use App\Http\Controllers\InstancearriveeController;
@@ -67,6 +68,10 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/storage/{path}', [CourrierPdfController::class, 'show'])
+        ->where('path', 'courrier(arrivee|depart)/.*')
+        ->name('courrier.pdf');
+
     // ✅ Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
